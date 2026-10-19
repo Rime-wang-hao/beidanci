@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#FFE9DC" />
+  <title>每日背单词 · Daily Word</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Ma+Shan+Zheng&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+  <canvas id="confetti"></canvas>
+
+  <!-- 音乐按钮 -->
+  <button id="musicBtn" class="music-btn" title="音乐开关" aria-label="音乐开关">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style="color:#C9A36B;">
+      <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+    </svg>
+  </button>
+
+  <!-- 顶部进度 -->
+  <section class="top-panel">
+    <div class="top-row">
+      <span class="today-label" id="todayText">今日进度：0 / 0</span>
+      <span class="streak" title="连续打卡">
+        <span>🔥</span>
+        <span class="streak-num" id="streakNum">0</span>
+        <span id="streakUnit">天</span>
+      </span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="study-row">
+      <span class="study-label">📝 今日已学 <strong id="studyCount">0</strong> 个</span>
+      <span class="study-detail">
+        <span class="dot-known"></span><span id="knownCount">0</span>
+        <span class="dot-unknown"></span><span id="unknownCount">0</span>
+      </span>
+    </div>
+    <!-- ★ 累计掌握（永久累加） -->
+    <div class="cumulative-row">
+      <span class="cumulative-label">🏆 已累计掌握 <strong id="knownTotal">0</strong> 词</span>
+      <span class="cumulative-detail">总进度 <span id="cumulativePct">0</span>%</span>
+    </div>
+  </section>
+
+  <!-- 单词翻转卡（含左右翻阅按钮） -->
+  <section class="card-stage">
+    <button class="nav-btn nav-prev" id="prevBtn" title="上一张" aria-label="上一张">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+      </svg>
+    </button>
+
+    <div class="flashcard" id="flashcard">
+      <div class="face face-front">
+        <div class="word-main" id="wordMain">word</div>
+        <button class="speaker" id="speakBtn" title="朗读">
+          <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05a4.5 4.5 0 0 0 2.5-4.02zM14 3.23v2.06A7 7 0 0 1 14 18.7v2.06A9 9 0 0 0 14 3.23z"/></svg>
+        </button>
+        <div class="tap-hint" id="tapHint">轻触卡片 · 查看释义</div>
+      </div>
+      <div class="face face-back">
+        <div class="word-main" id="wordMainBack" style="font-size:42px;margin-bottom:8px;"></div>
+        <div class="phonetic" id="phonetic"></div>
+        <span class="pos-tag" id="posTag"></span>
+        <div class="meaning" id="meaning"></div>
+        <div class="example" id="example"></div>
+      </div>
+    </div>
+
+    <button class="nav-btn nav-next" id="nextBtn" title="下一张" aria-label="下一张">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+        <path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+      </svg>
+    </button>
+  </section>
+
+  <!-- 操作按钮 -->
+  <div class="card-actions">
+    <button class="action-btn btn-unknown" id="btnUnknown">
+      <span class="btn-icon">❌</span>不认识
+    </button>
+    <button class="action-btn btn-known" id="btnKnown">
+      <span class="btn-icon">✨</span>认识啦
+    </button>
+  </div>
+
+  <!-- ★ 底部 Tab 区域：生词本 / 已掌握 / 全部词汇 -->
+  <section class="tabs-area">
+    <div class="tab-headers">
+      <button class="tab-header active" data-tab="hard">📒 生词本 <span class="tab-count" id="hardCount">0</span></button>
+      <button class="tab-header" data-tab="known">🏆 已掌握 <span class="tab-count" id="knownCountTab">0</span></button>
+      <button class="tab-header" data-tab="all">📚 全部词汇 <span class="tab-count" id="allCount">0</span></button>
+    </div>
+    <div class="tab-body">
+      <div class="tab-pane active" id="pane-hard">
+        <div id="hardList"></div>
+      </div>
+      <div class="tab-pane" id="pane-known">
+        <div id="knownList"></div>
+      </div>
+      <div class="tab-pane" id="pane-all">
+        <input type="text" class="search-box" id="searchBox" placeholder="搜索单词或释义…" />
+        <div id="allList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 逻辑（词库通过 fetch + SheetJS 解析本地 xls 文件） -->
+  <script src="script.js"></script>
+</body>
+</html>
