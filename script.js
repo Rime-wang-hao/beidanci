@@ -18,6 +18,7 @@ const CONFIG = {
   toastBack:        "已移出生词本",
   toastEmptyHard:   "生词本是空的～",
   toastNavEdge:     "已经是最后一张啦～",
+  toastNoTTS:       "您的浏览器暂不支持朗读",
   tabHardTitle:     "生词本",
   tabKnownTitle:    "已掌握",
   tabAllTitle:      "全部词汇",
@@ -25,13 +26,46 @@ const CONFIG = {
   emptyKnown:       "还没有掌握任何单词哦～ 试试点\u201c认识啦\u201d积累你的战利品！",
   emptyAll:         "没有匹配的单词",
   searchPH:         "搜索单词或释义…",
-  dailyTarget:      10,            // 每天目标词数
+  dailyTarget:      10,            // 每天目标词数（顺序抽词）
   // 数据源（预先生成的 JSON 词库，4400+ 词）
   wordsUrl:         "./words.json",
   // 音乐
   musicFile:        "music.mp3",
   // 颜色（同步 style.css）
-  starColors:       ["#FFD194", "#FFB088", "#FFC9D2", "#E8C39E", "#F2E2C2", "#FFFFFF"]
+  starColors:       ["#FFD194", "#FFB088", "#FFC9D2", "#E8C39E", "#F2E2C2", "#FFFFFF"],
+  // ★ 每日一句（30 句英文谚语 · 按年内天数取模，每天固定一句）
+  quotes: [
+    "Every day may not be good, but there's something good in every day.",
+    "Believe you can and you're halfway there.",
+    "The best time to plant a tree was 20 years ago. The second best time is now.",
+    "Small steps every day lead to big results.",
+    "Don't watch the clock; do what it does. Keep going.",
+    "Little by little, one travels far.",
+    "Mistakes are proof that you are trying.",
+    "The expert in anything was once a beginner.",
+    "Push yourself, because no one else is going to do it for you.",
+    "Great things never come from comfort zones.",
+    "Dream it. Wish it. Do it.",
+    "Success is the sum of small efforts repeated day in and day out.",
+    "It always seems impossible until it's done.",
+    "The harder you work for something, the greater you'll feel when you achieve it.",
+    "Don't stop when you're tired. Stop when you're done.",
+    "Wake up with determination. Go to bed with satisfaction.",
+    "Do something today that your future self will thank you for.",
+    "Little things make big days.",
+    "It's going to be hard, but hard does not mean impossible.",
+    "Don't wait for opportunity. Create it.",
+    "Sometimes we're tested not to show our weaknesses, but to discover our strengths.",
+    "The key to success is to focus on goals, not obstacles.",
+    "Believe in yourself and all that you are.",
+    "A river cuts through rock, not because of its power, but because of its persistence.",
+    "Every word you learn is a step forward.",
+    "Learning is a treasure that follows its owner everywhere.",
+    "Where there is a will, there is a way.",
+    "Practice makes perfect.",
+    "Rome was not built in a day.",
+    "Actions speak louder than words."
+  ]
 };
 
 // =============================================================
@@ -119,11 +153,31 @@ function shuffle(arr) {
   }
   return a;
 }
+
+// ★ 今天是今年的第几天（1 ~ 366）
+function dayOfYear() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);   // 上一年最后一天
+  const diff = now - start;
+  const oneDay = 1000 * 60 * 60 * 24;
+  return Math.floor(diff / oneDay);
+}
+
+// ★ 每日任务：按词库顺序抽词（不再随机）
+//   startIndex = (年内天数 - 1) * 10，超出总词数则循环
 function pickTodayQueue() {
   const list = getWordList();
+  if (!list.length) return [];
   const n = Math.min(CONFIG.dailyTarget, list.length);
-  return shuffle(list).slice(0, n);
+  const day = dayOfYear();
+  const startIndex = ((day - 1) * n) % list.length;
+  let q = list.slice(startIndex, startIndex + n);
+  if (q.length < n) {                 // 越界时从头部接上，保证每天满 10 词
+    q = q.concat(list.slice(0, n - q.length));
+  }
+  return q;
 }
+
 function checkStreak() {
   if (!wordListReady) return;     // 词库未就绪，跳过 streak 检查
   if (state.lastStudyDate !== today()) {
@@ -227,6 +281,7 @@ function renderCard(keepFlipped = false) {
   else cardEl.classList.remove("flipped");
   void cardEl.offsetWidth;
   renderTop();
+  renderMission();      // ★ 同步今日任务列表高亮
   updateNavButtons();
 }
 
@@ -263,7 +318,7 @@ function toggleFlip() {
 }
 
 // =============================================================
-// ★ 左右翻阅（新）
+// ★ 左右翻阅
 // =============================================================
 let navLock = false;   // 平滑过渡锁：避免动画中连点导致错乱
 function goPrev() {
@@ -285,15 +340,17 @@ function goNext() {
 function navTo(idx) {
   const card = document.getElementById("flashcard");
   if (card.classList.contains("flipped")) {
+    // 平滑过渡：翻回正面动画 (0.7s) 进行到一半时换字，新词随翻牌回到正面
     navLock = true;
     card.classList.remove("flipped");
     setTimeout(() => {
       currentIndex = idx;
-      renderCard();
+      renderCard();         // ← keepFlipped 默认 false，新词一定正面
       renderTop();
       navLock = false;
     }, 400);
   } else {
+    // 已经是正面：直接切换
     currentIndex = idx;
     renderCard();
     renderTop();
@@ -347,11 +404,13 @@ function answer(isKnown) {
   toast(isKnown ? CONFIG.toastKnown : CONFIG.toastUnknown);
   updateNavButtons();
 
+  // ★ 立即推进 currentIndex（这样 prev 才能回到刚飞出的那个词）
   currentIndex++;
   state.todayDone++;
   updateStreak();
   saveState();
 
+  // 600ms 后渲染下一张
   setTimeout(() => {
     if (currentIndex >= state.todayQueue.length) {
       onAllDone();
@@ -362,18 +421,113 @@ function answer(isKnown) {
 }
 
 // =============================================================
-// TTS
+// TTS 语音朗读（兼容 iOS Safari / 微信内置浏览器）
 // =============================================================
-function speakWord(word) {
-  if (!word || !window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(word);
-  u.lang = "en-US"; u.rate = 0.85; u.pitch = 1;
-  window.speechSynthesis.speak(u);
+let ttsVoice = null;        // 缓存英文发音人（避免 speak 时异步查询）
+
+// 预热发音引擎：iOS/微信首次交互前 getVoices() 为空，提前触发加载并缓存
+function warmupVoices() {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    const pick = () => {
+      const vs = window.speechSynthesis.getVoices() || [];
+      if (!vs.length) return;
+      ttsVoice = vs.find(v => v.lang === "en-US" && v.localService)
+              || vs.find(v => v.lang === "en-US")
+              || vs.find(v => /^en[-_]/i.test(v.lang))
+              || null;
+    };
+    pick();
+    window.speechSynthesis.onvoiceschanged = pick;
+  } catch (_) {}
 }
+
+function speakWord(word) {
+  if (!word) return;
+  // 容错：浏览器不支持
+  if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance === "undefined") {
+    toast(CONFIG.toastNoTTS);
+    return;
+  }
+  try {
+    // 先取消队列，避免连点堆积（iOS 上 cancel 后立即 speak 是标准做法）
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(word);
+    u.lang = "en-US";
+    u.rate = 0.85;
+    u.pitch = 1;
+    if (ttsVoice) u.voice = ttsVoice;      // 使用预热的英文发音人
+    // ★ 必须在用户点击的同步调用栈里直接 speak，异步会触发移动端拦截
+    window.speechSynthesis.speak(u);
+  } catch (e) {
+    toast(CONFIG.toastNoTTS);
+  }
+}
+
 function speak() {
   const w = state.todayQueue[currentIndex];
   if (w) speakWord(w.word);
+}
+
+// =============================================================
+// ★ 今日任务板块（顺序抽词列表）
+// =============================================================
+function renderMission() {
+  const list = document.getElementById("missionList");
+  if (!list) return;
+  const q = state.todayQueue || [];
+  if (q.length === 0) {
+    list.innerHTML = `<div class="mission-empty">今日任务生成中…</div>`;
+    return;
+  }
+  const cur = q[currentIndex];
+  list.innerHTML = q.map((w, i) => {
+    const isCur = cur && w.word === cur.word;
+    const done  = (state.history || []).some(h => h.word === w.word);
+    return `
+      <button class="mission-item${isCur ? " is-current" : ""}${done ? " is-done" : ""}"
+              onclick="jumpToWord('${w.word}')" title="点击查看并朗读">
+        <span class="mission-num">${i + 1}</span>
+        <span class="mission-word">${w.word}</span>
+        <span class="mission-ph">${w.phonetic || ""}</span>
+        ${done ? '<span class="mission-check">✓</span>' : ""}
+      </button>`;
+  }).join("");
+}
+
+// 点击今日任务里的词 → 同步朗读 + 跳到对应卡片
+function jumpToWord(word) {
+  const idx = (state.todayQueue || []).findIndex(w => w.word === word);
+  if (idx < 0) return;
+  // ★ 先同步朗读（必须在用户手势的调用栈内，否则 iOS/微信会拦截发音）
+  speakWord(word);
+  if (idx === currentIndex) return;
+  const card = document.getElementById("flashcard");
+  if (card.classList.contains("flipped")) {
+    navLock = true;
+    card.classList.remove("flipped");
+    setTimeout(() => {
+      currentIndex = idx;
+      renderCard();
+      renderTop();
+      navLock = false;
+    }, 400);
+  } else {
+    currentIndex = idx;
+    renderCard();
+    renderTop();
+  }
+}
+
+// =============================================================
+// ★ 每日一句（按年内天数取模，每天固定一句）
+// =============================================================
+function renderQuote() {
+  const el = document.getElementById("quoteText");
+  if (!el) return;
+  const day = dayOfYear();
+  const q = CONFIG.quotes[day % CONFIG.quotes.length];
+  el.textContent = q;
 }
 
 // =============================================================
@@ -707,6 +861,7 @@ async function init() {
   setupStarfield();
   setupMusic();
   setupSwipe();
+  warmupVoices();        // ★ TTS 引擎预热（iOS/微信兼容）
 
   // 事件绑定
   document.getElementById("flashcard").addEventListener("click", (e) => {
@@ -729,6 +884,22 @@ async function init() {
     allSearchQ = e.target.value;
     renderAll();
   });
+
+  // ★ 今日任务折叠 / 展开
+  const missionHead = document.getElementById("missionHead");
+  if (missionHead) {
+    missionHead.addEventListener("click", () => {
+      const panel = document.getElementById("missionPanel");
+      panel.classList.toggle("collapsed");
+    });
+    // 移动端默认折叠（避免首屏被遮挡）
+    if (window.innerWidth < 600) {
+      document.getElementById("missionPanel").classList.add("collapsed");
+    }
+  }
+
+  // ★ 每日一句（不依赖词库，立即可渲染）
+  renderQuote();
 
   // ★ 异步加载词库
   await loadWordList();

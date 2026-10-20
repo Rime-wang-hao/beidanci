@@ -48,6 +48,28 @@
     </div>
   </section>
 
+  <!-- ★★ 今日任务 + 每日一句（新） ★★ -->
+  <section class="mission-area">
+    <!-- 今日任务：按词库顺序每天固定 10 词，可折叠 -->
+    <div class="mission-panel" id="missionPanel">
+      <div class="mission-head" id="missionHead" title="点击折叠 / 展开">
+        <span class="mission-title">📋 今日任务</span>
+        <span class="mission-sub">按词库顺序 · 每天 10 词</span>
+        <span class="mission-toggle" id="missionToggle">▾</span>
+      </div>
+      <div class="mission-body" id="missionBody">
+        <div class="mission-list" id="missionList"></div>
+      </div>
+    </div>
+
+    <!-- 每日一句：固定每天一句，刷新不变 -->
+    <div class="quote-card">
+      <span class="quote-mark">"</span>
+      <div class="quote-text" id="quoteText">Loading…</div>
+      <div class="quote-label">— 每日一句 —</div>
+    </div>
+  </section>
+
   <!-- 单词翻转卡（含左右翻阅按钮） -->
   <section class="card-stage">
     <button class="nav-btn nav-prev" id="prevBtn" title="上一张" aria-label="上一张">
@@ -114,7 +136,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- 逻辑（词库通过 fetch + SheetJS 解析本地 xls 文件） -->
+  <!-- 逻辑（词库通过 fetch ./words.json 加载） -->
   <script src="script.js"></script>
 </body>
 </html>
