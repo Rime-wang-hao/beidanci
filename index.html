@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Ma+Shan+Zheng&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <!-- ★ 加版本号：强制浏览器拉取最新样式（避免手机旧缓存） -->
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <canvas id="starfield"></canvas>
@@ -48,24 +49,29 @@
     </div>
   </section>
 
-  <!-- ★★ 今日任务 + 每日一句（新） ★★ -->
+  <!-- ★★ 今日任务 + 每日一句 ★★ -->
   <section class="mission-area">
-    <!-- 今日任务：按词库顺序每天固定 10 词，可折叠 -->
-    <div class="mission-panel" id="missionPanel">
-      <div class="mission-head" id="missionHead" title="点击折叠 / 展开">
+    <!--
+      今日任务：按词库顺序每天固定 10 词
+      ★ 使用原生 <details>：即使 JS 没跑也能展开/收起（零依赖，不会"点不开"）
+    -->
+    <details class="mission-panel" id="missionPanel" open>
+      <summary class="mission-head" id="missionHead" title="点击展开 / 收起">
         <span class="mission-title">📋 今日任务</span>
         <span class="mission-sub">按词库顺序 · 每天 10 词</span>
-        <span class="mission-toggle" id="missionToggle">▾</span>
-      </div>
+        <span class="mission-toggle" id="missionToggle" aria-hidden="true">▾</span>
+      </summary>
       <div class="mission-body" id="missionBody">
-        <div class="mission-list" id="missionList"></div>
+        <div class="mission-list" id="missionList">
+          <div class="mission-empty">今日任务加载中…</div>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <!-- 每日一句：固定每天一句，刷新不变 -->
+    <!-- 每日一句：HTML 内联静态兜底，JS 再覆盖（任何情况下都不会停在 Loading） -->
     <div class="quote-card">
       <span class="quote-mark">"</span>
-      <div class="quote-text" id="quoteText">Loading…</div>
+      <div class="quote-text" id="quoteText">Every day may not be good, but there's something good in every day.</div>
       <div class="quote-label">— 每日一句 —</div>
     </div>
   </section>
@@ -136,7 +142,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- 逻辑（词库通过 fetch ./words.json 加载） -->
-  <script src="script.js"></script>
+  <!-- ★ 加版本号：强制浏览器拉取最新脚本（避免手机旧缓存导致功能失效） -->
+  <script src="script.js?v=3"></script>
 </body>
 </html>

@@ -1,9 +1,49 @@
 // =============================================================
 // script.js — 每日背单词 · 主逻辑
-// 顶部 CONFIG 集中管理所有可改文案
-// 数据源：./words.json（预先生成的 4400+ 词 JSON）
+// ★ 版本号：改动后请同步更新这里 + index.html 里的 ?v= 参数
+//   APP_VERSION  → 用于检测旧缓存并自动刷新
+//   ?v=3         → 强制浏览器重新下载本文件
 // =============================================================
 
+const APP_VERSION = "v3.0.0";
+
+// ★ 每日一句：30 句英文鼓励谚语（集中在一个数组里）
+const DAILY_QUOTES = [
+  "Every day may not be good, but there's something good in every day.",
+  "Believe you can and you're halfway there.",
+  "The best time to plant a tree was 20 years ago. The second best time is now.",
+  "Small steps every day lead to big results.",
+  "Don't watch the clock; do what it does. Keep going.",
+  "Little by little, one travels far.",
+  "Mistakes are proof that you are trying.",
+  "The expert in anything was once a beginner.",
+  "Push yourself, because no one else is going to do it for you.",
+  "Great things never come from comfort zones.",
+  "Dream it. Wish it. Do it.",
+  "Success is the sum of small efforts repeated day in and day out.",
+  "It always seems impossible until it's done.",
+  "The harder you work for something, the greater you'll feel when you achieve it.",
+  "Don't stop when you're tired. Stop when you're done.",
+  "Wake up with determination. Go to bed with satisfaction.",
+  "Do something today that your future self will thank you for.",
+  "Little things make big days.",
+  "It's going to be hard, but hard does not mean impossible.",
+  "Don't wait for opportunity. Create it.",
+  "Sometimes we're tested not to show our weaknesses, but to discover our strengths.",
+  "The key to success is to focus on goals, not obstacles.",
+  "Believe in yourself and all that you are.",
+  "A river cuts through rock, not because of its power, but because of its persistence.",
+  "Every word you learn is a step forward.",
+  "Learning is a treasure that follows its owner everywhere.",
+  "Where there is a will, there is a way.",
+  "Practice makes perfect.",
+  "Rome was not built in a day.",
+  "Actions speak louder than words."
+];
+
+// =============================================================
+// CONFIG —— 集中管理所有可改文案
+// =============================================================
 const CONFIG = {
   // 文案
   todayLabel:       "今日进度",
@@ -16,62 +56,47 @@ const CONFIG = {
   toastUnknown:     "已加入生词本",
   toastAllDone:     "太棒了，今日任务完成！",
   toastBack:        "已移出生词本",
-  toastEmptyHard:   "生词本是空的～",
   toastNavEdge:     "已经是最后一张啦～",
   toastNoTTS:       "您的浏览器暂不支持朗读",
-  tabHardTitle:     "生词本",
-  tabKnownTitle:    "已掌握",
-  tabAllTitle:      "全部词汇",
   emptyHard:        "还没有生词，遇到不会的词点\u201c不认识\u201d会自动收入这里。",
   emptyKnown:       "还没有掌握任何单词哦～ 试试点\u201c认识啦\u201d积累你的战利品！",
   emptyAll:         "没有匹配的单词",
-  searchPH:         "搜索单词或释义…",
   dailyTarget:      10,            // 每天目标词数（顺序抽词）
-  // 数据源（预先生成的 JSON 词库，4400+ 词）
+  // 数据源
   wordsUrl:         "./words.json",
   // 音乐
   musicFile:        "music.mp3",
   // 颜色（同步 style.css）
   starColors:       ["#FFD194", "#FFB088", "#FFC9D2", "#E8C39E", "#F2E2C2", "#FFFFFF"],
-  // ★ 每日一句（30 句英文谚语 · 按年内天数取模，每天固定一句）
-  quotes: [
-    "Every day may not be good, but there's something good in every day.",
-    "Believe you can and you're halfway there.",
-    "The best time to plant a tree was 20 years ago. The second best time is now.",
-    "Small steps every day lead to big results.",
-    "Don't watch the clock; do what it does. Keep going.",
-    "Little by little, one travels far.",
-    "Mistakes are proof that you are trying.",
-    "The expert in anything was once a beginner.",
-    "Push yourself, because no one else is going to do it for you.",
-    "Great things never come from comfort zones.",
-    "Dream it. Wish it. Do it.",
-    "Success is the sum of small efforts repeated day in and day out.",
-    "It always seems impossible until it's done.",
-    "The harder you work for something, the greater you'll feel when you achieve it.",
-    "Don't stop when you're tired. Stop when you're done.",
-    "Wake up with determination. Go to bed with satisfaction.",
-    "Do something today that your future self will thank you for.",
-    "Little things make big days.",
-    "It's going to be hard, but hard does not mean impossible.",
-    "Don't wait for opportunity. Create it.",
-    "Sometimes we're tested not to show our weaknesses, but to discover our strengths.",
-    "The key to success is to focus on goals, not obstacles.",
-    "Believe in yourself and all that you are.",
-    "A river cuts through rock, not because of its power, but because of its persistence.",
-    "Every word you learn is a step forward.",
-    "Learning is a treasure that follows its owner everywhere.",
-    "Where there is a will, there is a way.",
-    "Practice makes perfect.",
-    "Rome was not built in a day.",
-    "Actions speak louder than words."
-  ]
+  // 每日一句（与 DAILY_QUOTES 同一份数据）
+  quotes:           DAILY_QUOTES
 };
 
 // =============================================================
-// State（localStorage 持久化）
+// ★ 版本自检：检测到旧版本缓存 → 自动强制刷新一次
+//    （解决"HTML 是新的、JS 是旧的"导致的功能错乱）
 // =============================================================
-const STORAGE_KEY = "beidanci_v2";
+function checkAppVersion() {
+  try {
+    const KEY = "beidanci_app_version";
+    const saved = localStorage.getItem(KEY);
+    if (saved && saved !== APP_VERSION && !sessionStorage.getItem("beidanci_reloaded")) {
+      // 旧缓存 → 记下标记并强制刷新一次
+      sessionStorage.setItem("beidanci_reloaded", "1");
+      localStorage.setItem(KEY, APP_VERSION);
+      location.reload(true);
+      return true;   // 正在刷新，调用方应停止继续初始化
+    }
+    localStorage.setItem(KEY, APP_VERSION);
+  } catch (e) {}
+  return false;
+}
+
+// =============================================================
+// State（localStorage 持久化）
+// ★ STORAGE_KEY 升到 v3：强制清空一次旧缓存，避免"没学却显示 10 个"
+// =============================================================
+const STORAGE_KEY = "beidanci_v3";
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -96,32 +121,30 @@ function saveState() {
 }
 function loadState() {
   try {
-    // 兼容 v1 旧数据（只有 beidanci_v1 才迁移，新用户直接用 v2）
-    const s = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("beidanci_v1");
+    const s = localStorage.getItem(STORAGE_KEY);
     if (s) {
       const obj = JSON.parse(s);
       state = Object.assign(state, obj);
     }
   } catch(e) {}
-  // 防御：旧版本数据迁移
-  if (!Array.isArray(state.knownWords)) {
-    state.knownWords = state.known && typeof state.known === "object"
-      ? Object.keys(state.known) : [];
-  }
-  if (!Array.isArray(state.hardWords)) {
-    state.hardWords = Array.isArray(state.hardList) ? state.hardList : [];
-  }
-  if (!Array.isArray(state.history)) state.history = [];
+  // 防御：脏数据修正
+  if (!Array.isArray(state.knownWords)) state.knownWords = [];
+  if (!Array.isArray(state.hardWords))  state.hardWords  = [];
+  if (!Array.isArray(state.history))     state.history    = [];
+  if (!Array.isArray(state.todayQueue))  state.todayQueue = [];
 }
 
 // =============================================================
-// 词库加载（fetch ./words.json）— 异步、容错
+// 词库加载（fetch ./words.json）— 异步、容错、可重试
 // =============================================================
 let wordList = [];            // 已加载的词库
 let wordListReady = false;    // 是否就绪
 let wordListError = null;     // 加载错误
+let wordListLoading = false;  // 是否正在加载
 
 async function loadWordList() {
+  if (wordListLoading) return;
+  wordListLoading = true;
   try {
     const r = await fetch(CONFIG.wordsUrl, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -135,6 +158,8 @@ async function loadWordList() {
   } catch (e) {
     wordListError = e;
     wordListReady = false;
+  } finally {
+    wordListLoading = false;
   }
 }
 
@@ -214,6 +239,7 @@ function fmtTime(ts) {
 let toastTimer = null;
 function toast(msg) {
   const t = document.getElementById("toast");
+  if (!t) return;
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(toastTimer);
@@ -221,31 +247,61 @@ function toast(msg) {
 }
 
 // =============================================================
+// ★★ 每日一句：独立渲染，不依赖任何异步加载
+//    （同一天恒定，刷新不变；跨天自动切换）
+// =============================================================
+function renderQuote() {
+  const el = document.getElementById("quoteText");
+  if (!el) return;
+  const list = (Array.isArray(DAILY_QUOTES) && DAILY_QUOTES.length)
+    ? DAILY_QUOTES
+    : CONFIG.quotes;
+  if (!list || !list.length) return;
+  const day = dayOfYear();
+  el.textContent = list[day % list.length];
+}
+
+// 脚本一加载就渲染（不依赖 DOMContentLoaded，也不会停在 Loading）
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", renderQuote);
+} else {
+  renderQuote();
+}
+
+// =============================================================
 // 渲染：顶部进度
 // =============================================================
 function renderTop() {
-  // 今日进度
-  document.getElementById("todayText").textContent =
-    `${CONFIG.todayLabel}：${state.todayDone} / ${state.todayQueue.length}`;
-  // 连续打卡
-  document.getElementById("streakNum").textContent = state.streak;
+  const todayText = document.getElementById("todayText");
+  if (todayText) {
+    todayText.textContent = `${CONFIG.todayLabel}：${state.todayDone} / ${state.todayQueue.length}`;
+  }
+  const streakNum = document.getElementById("streakNum");
+  if (streakNum) streakNum.textContent = state.streak;
+
   // ★ 今日已学统计（按日期清空）
   const hist = state.history || [];
   const knownN = hist.filter(h => h.status === "known").length;
   const unknownN = hist.length - knownN;
-  document.getElementById("studyCount").textContent = hist.length;
-  document.getElementById("knownCount").textContent = knownN;
-  document.getElementById("unknownCount").textContent = unknownN;
+  const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setNum("studyCount", hist.length);
+  setNum("knownCount", knownN);
+  setNum("unknownCount", unknownN);
+
   // ★ 累计掌握（永久累加）
   const totalKnown = (state.knownWords || []).length;
-  document.getElementById("knownTotal").textContent = totalKnown;
+  setNum("knownTotal", totalKnown);
   const totalWords = wordListReady ? wordList.length : 0;
   const cumPct = totalWords > 0 ? Math.round(totalKnown / totalWords * 100) : 0;
-  document.getElementById("cumulativePct").textContent = cumPct;
+  setNum("cumulativePct", cumPct);
+
   // 进度条
-  const pct = state.todayQueue.length > 0
-    ? Math.round(state.todayDone / state.todayQueue.length * 100) : 0;
-  document.getElementById("progressFill").style.width = pct + "%";
+  const fill = document.getElementById("progressFill");
+  if (fill) {
+    const pct = state.todayQueue.length > 0
+      ? Math.round(state.todayDone / state.todayQueue.length * 100) : 0;
+    fill.style.width = pct + "%";
+  }
 }
 
 // =============================================================
@@ -254,10 +310,11 @@ function renderTop() {
 let currentIndex = 0;
 function renderCard(keepFlipped = false) {
   const cardEl = document.getElementById("flashcard");
+  if (!cardEl) return;
   if (state.todayQueue.length === 0) {
-    // 词库没就绪 或 还没生成队列
     if (!wordListReady) {
       showEmptyCard("词库加载中…");
+      renderMission();
       return;
     }
     state.todayQueue = pickTodayQueue();
@@ -287,8 +344,10 @@ function renderCard(keepFlipped = false) {
 
 function showEmptyCard(msg) {
   const cardEl = document.getElementById("flashcard");
+  if (!cardEl) return;
   document.getElementById("wordMain").textContent = msg;
-  document.getElementById("wordMainBack").textContent = msg;
+  const back = document.getElementById("wordMainBack");
+  if (back) back.textContent = msg;
   document.getElementById("phonetic").textContent = "";
   document.getElementById("posTag").textContent = "";
   document.getElementById("meaning").textContent = "";
@@ -314,7 +373,8 @@ function onAllDone() {
 // 翻牌
 // =============================================================
 function toggleFlip() {
-  document.getElementById("flashcard").classList.toggle("flipped");
+  const card = document.getElementById("flashcard");
+  if (card) card.classList.toggle("flipped");
 }
 
 // =============================================================
@@ -324,14 +384,14 @@ let navLock = false;   // 平滑过渡锁：避免动画中连点导致错乱
 function goPrev() {
   if (navLock) return;
   const card = document.getElementById("flashcard");
-  if (card.classList.contains("fly-out-left") || card.classList.contains("fly-out-right")) return;
+  if (card && (card.classList.contains("fly-out-left") || card.classList.contains("fly-out-right"))) return;
   if (currentIndex <= 0) { toast(CONFIG.toastNavEdge); return; }
   navTo(currentIndex - 1);
 }
 function goNext() {
   if (navLock) return;
   const card = document.getElementById("flashcard");
-  if (card.classList.contains("fly-out-left") || card.classList.contains("fly-out-right")) return;
+  if (card && (card.classList.contains("fly-out-left") || card.classList.contains("fly-out-right"))) return;
   if (currentIndex >= state.todayQueue.length - 1) { toast(CONFIG.toastNavEdge); return; }
   navTo(currentIndex + 1);
 }
@@ -339,18 +399,16 @@ function goNext() {
 // 翻阅核心：若当前在背面，先翻回正面再切换文本
 function navTo(idx) {
   const card = document.getElementById("flashcard");
-  if (card.classList.contains("flipped")) {
-    // 平滑过渡：翻回正面动画 (0.7s) 进行到一半时换字，新词随翻牌回到正面
+  if (card && card.classList.contains("flipped")) {
     navLock = true;
     card.classList.remove("flipped");
     setTimeout(() => {
       currentIndex = idx;
-      renderCard();         // ← keepFlipped 默认 false，新词一定正面
+      renderCard();
       renderTop();
       navLock = false;
     }, 400);
   } else {
-    // 已经是正面：直接切换
     currentIndex = idx;
     renderCard();
     renderTop();
@@ -400,7 +458,7 @@ function answer(isKnown) {
 
   // 飞出方向
   const card = document.getElementById("flashcard");
-  card.classList.add(isKnown ? "fly-out-right" : "fly-out-left");
+  if (card) card.classList.add(isKnown ? "fly-out-right" : "fly-out-left");
   toast(isKnown ? CONFIG.toastKnown : CONFIG.toastUnknown);
   updateNavButtons();
 
@@ -410,7 +468,6 @@ function answer(isKnown) {
   updateStreak();
   saveState();
 
-  // 600ms 后渲染下一张
   setTimeout(() => {
     if (currentIndex >= state.todayQueue.length) {
       onAllDone();
@@ -450,7 +507,6 @@ function speakWord(word) {
     return;
   }
   try {
-    // 先取消队列，避免连点堆积（iOS 上 cancel 后立即 speak 是标准做法）
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(word);
     u.lang = "en-US";
@@ -475,6 +531,19 @@ function speak() {
 function renderMission() {
   const list = document.getElementById("missionList");
   if (!list) return;
+
+  // 词库还没加载好 → 给明确状态 + 重试入口（不再空白）
+  if (!wordListReady) {
+    if (state.todayQueue.length === 0) {
+      list.innerHTML = `
+        <div class="mission-empty">
+          ${wordListLoading ? "今日任务生成中…" : "词库未加载，无法生成今日任务"}
+          ${wordListLoading ? "" : '<button class="mission-retry" onclick="retryWordList()">🔄 重新加载词库</button>'}
+        </div>`;
+      return;
+    }
+  }
+
   const q = state.todayQueue || [];
   if (q.length === 0) {
     list.innerHTML = `<div class="mission-empty">今日任务生成中…</div>`;
@@ -495,6 +564,25 @@ function renderMission() {
   }).join("");
 }
 
+// 词库加载失败后手动重试
+async function retryWordList() {
+  toast("正在重新加载词库…");
+  await loadWordList();
+  if (wordListReady) {
+    checkStreak();
+    state.todayQueue = pickTodayQueue();
+    currentIndex = 0;
+    saveState();
+    renderCard();
+    renderMission();
+    renderTop();
+    toast("词库加载成功 ✓");
+  } else {
+    renderMission();
+    toast("词库仍无法加载，请检查 words.json 是否存在");
+  }
+}
+
 // 点击今日任务里的词 → 同步朗读 + 跳到对应卡片
 function jumpToWord(word) {
   const idx = (state.todayQueue || []).findIndex(w => w.word === word);
@@ -503,7 +591,7 @@ function jumpToWord(word) {
   speakWord(word);
   if (idx === currentIndex) return;
   const card = document.getElementById("flashcard");
-  if (card.classList.contains("flipped")) {
+  if (card && card.classList.contains("flipped")) {
     navLock = true;
     card.classList.remove("flipped");
     setTimeout(() => {
@@ -520,14 +608,46 @@ function jumpToWord(word) {
 }
 
 // =============================================================
-// ★ 每日一句（按年内天数取模，每天固定一句）
+// ★ 今日任务面板：展开 / 收起
+//    折叠本身由原生 <details> 完成（无 JS 依赖）；
+//    这里只做增强：记忆展开状态 + 移动端默认折叠
 // =============================================================
-function renderQuote() {
-  const el = document.getElementById("quoteText");
-  if (!el) return;
-  const day = dayOfYear();
-  const q = CONFIG.quotes[day % CONFIG.quotes.length];
-  el.textContent = q;
+const MISSION_OPEN_KEY = "beidanci_mission_open";
+function setupMissionPanel() {
+  const panel = document.getElementById("missionPanel");
+  if (!panel) return;
+
+  // 恢复上次展开状态
+  try {
+    const saved = localStorage.getItem(MISSION_OPEN_KEY);
+    if (saved === "1") panel.setAttribute("open", "");
+    else if (saved === "0") panel.removeAttribute("open");
+  } catch (e) {}
+
+  // 移动端首次访问：默认折叠，避免首屏被遮挡（已有记录则尊重用户选择）
+  try {
+    if (localStorage.getItem(MISSION_OPEN_KEY) === null && window.innerWidth < 600) {
+      panel.removeAttribute("open");
+    }
+  } catch (e) {}
+
+  // 记录状态
+  panel.addEventListener("toggle", () => {
+    try {
+      localStorage.setItem(MISSION_OPEN_KEY, panel.open ? "1" : "0");
+    } catch (e) {}
+  });
+
+  // 点击标题也切换（部分浏览器 summary 点击 + toggle 事件会重复，这里做防抖）
+  const head = document.getElementById("missionHead");
+  if (head) {
+    head.addEventListener("click", (e) => {
+      if (e.target.closest(".mission-toggle")) {
+        e.preventDefault();
+        panel.open = !panel.open;
+      }
+    });
+  }
 }
 
 // =============================================================
@@ -535,8 +655,10 @@ function renderQuote() {
 // =============================================================
 function renderKnown() {
   const list = document.getElementById("knownList");
+  if (!list) return;
   const words = state.knownWords || [];
-  document.getElementById("knownCountTab").textContent = words.length;
+  const cnt = document.getElementById("knownCountTab");
+  if (cnt) cnt.textContent = words.length;
   if (words.length === 0) {
     list.innerHTML = `<div class="empty-hint">${CONFIG.emptyKnown}</div>`;
     return;
@@ -579,8 +701,10 @@ function unmarkKnown(word) {
 // =============================================================
 function renderHard() {
   const list = document.getElementById("hardList");
+  if (!list) return;
   const words = state.hardWords || [];
-  document.getElementById("hardCount").textContent = words.length;
+  const cnt = document.getElementById("hardCount");
+  if (cnt) cnt.textContent = words.length;
   if (words.length === 0) {
     list.innerHTML = `<div class="empty-hint">${CONFIG.emptyHard}</div>`;
     return;
@@ -615,8 +739,10 @@ function removeFromHard(word) {
 let allSearchQ = "";
 function renderAll() {
   const list = document.getElementById("allList");
+  if (!list) return;
   const source = getWordList();
-  document.getElementById("allCount").textContent = source.length;
+  const cnt = document.getElementById("allCount");
+  if (cnt) cnt.textContent = source.length;
   if (!wordListReady) {
     list.innerHTML = `<div class="empty-hint">词库加载中…</div>`;
     return;
@@ -697,6 +823,7 @@ function setupMusic() {
 // =============================================================
 function setupStarfield() {
   const canvas = document.getElementById("starfield");
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
   let W = canvas.width = window.innerWidth;
   let H = canvas.height = window.innerHeight;
@@ -749,6 +876,7 @@ function setupStarfield() {
 // =============================================================
 function fireConfetti() {
   const canvas = document.getElementById("confetti");
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -798,6 +926,7 @@ function fireConfetti() {
 // =============================================================
 function setupSwipe() {
   const card = document.getElementById("flashcard");
+  if (!card) return;
   let sx = 0, sy = 0, dx = 0, dy = 0, active = false;
   const TH = 80;
   card.addEventListener("touchstart", (e) => {
@@ -835,7 +964,7 @@ function showSoftHint(e) {
     ? "本地直接打开无法读取词库，请用 VS Code 的 Live Server 插件，或上传到 GitHub Pages 查看 ✨"
     : `词库加载失败：${(e && e.message) || "未知错误"}。请检查 words.json 是否与 index.html 在同目录。`;
 
-  // 1) 顶部持久 banner（浅红柔和背景，不挡内容）
+  // 1) 顶部持久 banner
   const banner = document.createElement("div");
   banner.className = "soft-banner";
   banner.innerHTML = `
@@ -846,74 +975,88 @@ function showSoftHint(e) {
 
   // 2) 大 Toast（停留更久）
   const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show", "toast-big");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show", "toast-big"), 6000);
+  if (t) {
+    t.textContent = msg;
+    t.classList.add("show", "toast-big");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show", "toast-big"), 6000);
+  }
 }
 
 // =============================================================
 // 启动（async：等词库就绪再渲染主交互区）
 // =============================================================
 async function init() {
+  // ★ 版本自检：旧缓存 → 强制刷新一次
+  if (checkAppVersion()) return;
+
   loadState();
   // 启动装饰（不依赖词库）
   setupStarfield();
   setupMusic();
   setupSwipe();
-  warmupVoices();        // ★ TTS 引擎预热（iOS/微信兼容）
+  setupMissionPanel();     // ★ 今日任务面板（原生 details + 状态记忆）
+  warmupVoices();         // ★ TTS 引擎预热（iOS/微信兼容）
+
+  // ★ 每日一句：立即渲染（不依赖词库，绝不卡 Loading）
+  renderQuote();
 
   // 事件绑定
-  document.getElementById("flashcard").addEventListener("click", (e) => {
-    if (e.target.closest(".speaker")) return;
-    if (e.target.closest(".nav-btn")) return;
-    toggleFlip();
-  });
-  document.getElementById("speakBtn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    speak();
-  });
-  document.getElementById("btnUnknown").addEventListener("click", () => answer(false));
-  document.getElementById("btnKnown").addEventListener("click",   () => answer(true));
-  document.getElementById("prevBtn").addEventListener("click", (e) => { e.stopPropagation(); goPrev(); });
-  document.getElementById("nextBtn").addEventListener("click", (e) => { e.stopPropagation(); goNext(); });
+  const card = document.getElementById("flashcard");
+  if (card) {
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".speaker")) return;
+      if (e.target.closest(".nav-btn")) return;
+      toggleFlip();
+    });
+  }
+  const speakBtn = document.getElementById("speakBtn");
+  if (speakBtn) {
+    speakBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      speak();
+    });
+  }
+  const btnUnknown = document.getElementById("btnUnknown");
+  if (btnUnknown) btnUnknown.addEventListener("click", () => answer(false));
+  const btnKnown = document.getElementById("btnKnown");
+  if (btnKnown) btnKnown.addEventListener("click", () => answer(true));
+  const prevBtn = document.getElementById("prevBtn");
+  if (prevBtn) prevBtn.addEventListener("click", (e) => { e.stopPropagation(); goPrev(); });
+  const nextBtn = document.getElementById("nextBtn");
+  if (nextBtn) nextBtn.addEventListener("click", (e) => { e.stopPropagation(); goNext(); });
   document.querySelectorAll(".tab-header").forEach(h => {
     h.addEventListener("click", () => switchTab(h.dataset.tab));
   });
-  document.getElementById("searchBox").addEventListener("input", (e) => {
-    allSearchQ = e.target.value;
-    renderAll();
-  });
-
-  // ★ 今日任务折叠 / 展开
-  const missionHead = document.getElementById("missionHead");
-  if (missionHead) {
-    missionHead.addEventListener("click", () => {
-      const panel = document.getElementById("missionPanel");
-      panel.classList.toggle("collapsed");
+  const searchBox = document.getElementById("searchBox");
+  if (searchBox) {
+    searchBox.addEventListener("input", (e) => {
+      allSearchQ = e.target.value;
+      renderAll();
     });
-    // 移动端默认折叠（避免首屏被遮挡）
-    if (window.innerWidth < 600) {
-      document.getElementById("missionPanel").classList.add("collapsed");
-    }
   }
 
-  // ★ 每日一句（不依赖词库，立即可渲染）
-  renderQuote();
+  // ★ 今日任务列表：先占位，随后渲染
+  renderMission();
 
   // ★ 异步加载词库
   await loadWordList();
 
-  // 加载失败 → 软提示（不隐藏主区，累计掌握仍能显示）
+  // 加载失败 → 软提示（不隐藏主区，今日任务给出重试入口）
   if (!wordListReady) {
     showSoftHint(wordListError);
     showEmptyCard("词库加载中…");
     renderTop();
+    renderMission();
     return;
   }
 
   // 加载成功 → 检查 streak + 渲染首屏
   checkStreak();
+  if (state.todayQueue.length === 0) {
+    state.todayQueue = pickTodayQueue();
+    state.todayDone = 0;
+  }
   saveState();
 
   // 调试：URL 含 #flip 时首屏直接显示背面
@@ -926,6 +1069,7 @@ async function init() {
   renderHard();
   renderKnown();
   renderAll();
+  renderMission();
   if (tabParam) switchTab(tabParam);
 }
 

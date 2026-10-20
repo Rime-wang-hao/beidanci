@@ -644,7 +644,7 @@ body {
   gap: 10px;
 }
 
-/* ---- 今日任务面板（可折叠） ---- */
+/* ---- 今日任务面板（原生 <details> 折叠，零 JS 依赖） ---- */
 .mission-panel {
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
@@ -654,6 +654,13 @@ body {
   overflow: hidden;
   transition: box-shadow 0.25s;
 }
+/* summary 去掉默认三角 */
+.mission-panel > summary {
+  list-style: none;
+  display: block;
+}
+.mission-panel > summary::-webkit-details-marker { display: none; }
+.mission-panel > summary::marker { content: ""; }
 .mission-head {
   display: flex;
   align-items: center;
@@ -661,10 +668,13 @@ body {
   padding: 11px 14px;
   cursor: pointer;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
   background: linear-gradient(90deg, rgba(255, 209, 148, 0.28) 0%, rgba(255, 176, 136, 0.14) 100%);
   transition: background 0.2s;
 }
 .mission-head:hover { background: linear-gradient(90deg, rgba(255, 209, 148, 0.42) 0%, rgba(255, 176, 136, 0.24) 100%); }
+.mission-head:active { background: linear-gradient(90deg, rgba(255, 209, 148, 0.55) 0%, rgba(255, 176, 136, 0.32) 100%); }
 .mission-title {
   font-family: "Ma Shan Zheng", cursive;
   font-size: 19px;
@@ -690,20 +700,24 @@ body {
   flex-shrink: 0;
   line-height: 1;
 }
-.mission-panel.collapsed .mission-toggle { transform: rotate(-90deg); }
+.mission-panel.collapsed .mission-toggle,
+.mission-panel:not([open]) .mission-toggle { transform: rotate(-90deg); }
 
 .mission-body {
-  max-height: 320px;
+  max-height: 340px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   transition: max-height 0.32s ease, opacity 0.22s ease, padding 0.32s ease;
   padding: 10px 12px 12px;
   opacity: 1;
 }
-.mission-panel.collapsed .mission-body {
+.mission-panel.collapsed .mission-body,
+.mission-panel:not([open]) .mission-body {
   max-height: 0;
   opacity: 0;
   padding-top: 0;
   padding-bottom: 0;
+  overflow: hidden;
 }
 .mission-body::-webkit-scrollbar { width: 5px; }
 .mission-body::-webkit-scrollbar-thumb { background: rgba(201, 163, 107, 0.4); border-radius: 3px; }
@@ -783,6 +797,23 @@ body {
   color: var(--ink-soft);
   padding: 10px 0;
 }
+.mission-retry {
+  display: block;
+  margin: 8px auto 0;
+  padding: 6px 16px;
+  font-family: var(--font-num);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #FFB088 0%, #FF9E76 100%);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(255, 158, 118, 0.35);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.mission-retry:hover { transform: translateY(-1px); box-shadow: 0 5px 14px rgba(255, 158, 118, 0.45); }
+.mission-retry:active { transform: translateY(0); }
 
 /* ---- 每日一句 ---- */
 .quote-card {
