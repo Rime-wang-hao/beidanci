@@ -1,91 +1,82 @@
 // =============================================================
-// script.js — 每日背单词 · 主逻辑
+// script.js — 每日背单词 · 主逻辑  (v4)
 // ★ 版本号：改动后请同步更新这里 + index.html 里的 ?v= 参数
-//   APP_VERSION  → 用于检测旧缓存并自动刷新
-//   ?v=3         → 强制浏览器重新下载本文件
 // =============================================================
 
-const APP_VERSION = "v3.0.0";
+const APP_VERSION = "v4.0.0";
 
-// ★ 每日一句：30 句英文鼓励谚语（集中在一个数组里）
+// ★ 每日一句：30 句「坚持 / 努力 / 越努力越幸运」英中双语谚语
 const DAILY_QUOTES = [
-  "Every day may not be good, but there's something good in every day.",
-  "Believe you can and you're halfway there.",
-  "The best time to plant a tree was 20 years ago. The second best time is now.",
-  "Small steps every day lead to big results.",
-  "Don't watch the clock; do what it does. Keep going.",
-  "Little by little, one travels far.",
-  "Mistakes are proof that you are trying.",
-  "The expert in anything was once a beginner.",
-  "Push yourself, because no one else is going to do it for you.",
-  "Great things never come from comfort zones.",
-  "Dream it. Wish it. Do it.",
-  "Success is the sum of small efforts repeated day in and day out.",
-  "It always seems impossible until it's done.",
-  "The harder you work for something, the greater you'll feel when you achieve it.",
-  "Don't stop when you're tired. Stop when you're done.",
-  "Wake up with determination. Go to bed with satisfaction.",
-  "Do something today that your future self will thank you for.",
-  "Little things make big days.",
-  "It's going to be hard, but hard does not mean impossible.",
-  "Don't wait for opportunity. Create it.",
-  "Sometimes we're tested not to show our weaknesses, but to discover our strengths.",
-  "The key to success is to focus on goals, not obstacles.",
-  "Believe in yourself and all that you are.",
-  "A river cuts through rock, not because of its power, but because of its persistence.",
-  "Every word you learn is a step forward.",
-  "Learning is a treasure that follows its owner everywhere.",
-  "Where there is a will, there is a way.",
-  "Practice makes perfect.",
-  "Rome was not built in a day.",
-  "Actions speak louder than words."
+  { en: "Where there is a will, there is a way.",                      zh: "有志者，事竟成。" },
+  { en: "No pain, no gain.",                                          zh: "一分耕耘，一分收获。" },
+  { en: "Constant dropping wears the stone.",                         zh: "滴水穿石。" },
+  { en: "The harder you work, the luckier you get.",                  zh: "越努力，越幸运。" },
+  { en: "Don't watch the clock; do what it does. Keep going.",        zh: "不要盯着时钟看，要像它一样不停前行。" },
+  { en: "Little by little, one travels far.",                         zh: "积少成多，终至千里。" },
+  { en: "Mistakes are proof that you are trying.",                    zh: "犯错证明你正在努力尝试。" },
+  { en: "The expert in anything was once a beginner.",                zh: "任何专家都曾是初学者。" },
+  { en: "Push yourself, because no one else is going to do it for you.", zh: "逼自己一把，因为没人会替你努力。" },
+  { en: "Great things never come from comfort zones.",                zh: "伟大的成就从不来自舒适区。" },
+  { en: "Dream it. Wish it. Do it.",                                  zh: "梦想它，渴望它，然后做到它。" },
+  { en: "Success is the sum of small efforts repeated day in and day out.", zh: "成功是日复一日小小努力的累积。" },
+  { en: "It always seems impossible until it's done.",                zh: "在完成之前，一切总看似不可能。" },
+  { en: "Don't stop when you're tired. Stop when you're done.",       zh: "累了不要停，做完了再停。" },
+  { en: "Wake up with determination. Go to bed with satisfaction.",   zh: "带着决心醒来，带着满足入睡。" },
+  { en: "Do something today that your future self will thank you for.", zh: "做今天会让未来的自己感激的事。" },
+  { en: "Little things make big days.",                               zh: "点滴小事，成就丰盛的一天。" },
+  { en: "It's going to be hard, but hard does not mean impossible.",  zh: "这会很难，但难不代表不可能。" },
+  { en: "Don't wait for opportunity. Create it.",                     zh: "不要等待机会，去创造机会。" },
+  { en: "Sometimes we're tested not to show our weaknesses, but to discover our strengths.", zh: "考验不是为了暴露弱点，而是为了发现优势。" },
+  { en: "The key to success is to focus on goals, not obstacles.",    zh: "成功的关键是盯着目标，而不是障碍。" },
+  { en: "Believe in yourself and all that you are.",                  zh: "相信自己，相信你所拥有的一切。" },
+  { en: "A river cuts through rock, not because of its power, but because of its persistence.", zh: "河流穿透岩石，靠的不是力量，而是坚持。" },
+  { en: "Every word you learn is a step forward.",                    zh: "每学会一个词，都是向前的一步。" },
+  { en: "Learning is a treasure that follows its owner everywhere.",  zh: "知识是随身相伴的宝藏。" },
+  { en: "Practice makes perfect.",                                   zh: "熟能生巧。" },
+  { en: "Rome was not built in a day.",                              zh: "罗马不是一天建成的。" },
+  { en: "Actions speak louder than words.",                          zh: "行动胜于空谈。" },
+  { en: "Fall seven times, stand up eight.",                          zh: "跌倒七次，站起来八次。" },
+  { en: "The best time to plant a tree was 20 years ago. The second best time is now.", zh: "种树最好的时间是二十年前，其次是现在。" }
 ];
 
 // =============================================================
 // CONFIG —— 集中管理所有可改文案
 // =============================================================
 const CONFIG = {
-  // 文案
-  todayLabel:       "今日进度",
-  streakUnit:       "天",
-  streakTitle:      "连续打卡",
-  cardTapHint:      "轻触卡片 · 查看释义",
-  btnUnknown:       "不认识",
-  btnKnown:         "认识啦",
-  toastKnown:       "已掌握 ✨",
-  toastUnknown:     "已加入生词本",
-  toastAllDone:     "太棒了，今日任务完成！",
-  toastBack:        "已移出生词本",
-  toastNavEdge:     "已经是最后一张啦～",
-  toastNoTTS:       "您的浏览器暂不支持朗读",
-  emptyHard:        "还没有生词，遇到不会的词点\u201c不认识\u201d会自动收入这里。",
-  emptyKnown:       "还没有掌握任何单词哦～ 试试点\u201c认识啦\u201d积累你的战利品！",
-  emptyAll:         "没有匹配的单词",
-  dailyTarget:      10,            // 每天目标词数（顺序抽词）
-  // 数据源
-  wordsUrl:         "./words.json",
-  // 音乐
-  musicFile:        "music.mp3",
-  // 颜色（同步 style.css）
-  starColors:       ["#FFD194", "#FFB088", "#FFC9D2", "#E8C39E", "#F2E2C2", "#FFFFFF"],
-  // 每日一句（与 DAILY_QUOTES 同一份数据）
-  quotes:           DAILY_QUOTES
+  todayLabel:   "今日进度",
+  streakUnit:   "天",
+  cardTapHint:  "轻触卡片 · 查看释义",
+  btnUnknown:   "不认识",
+  btnKnown:     "认识啦",
+  toastKnown:   "已掌握 ✨",
+  toastUnknown: "已加入生词本",
+  toastAllDone: "太棒了，今日任务完成！",
+  toastBack:    "已移出生词本",
+  toastNavEdge: "已经是最后一张啦～",
+  toastNoTTS:   "您的浏览器暂不支持朗读",
+  emptyHard:    "还没有生词，遇到不会的词点\u201c不认识\u201d会自动收入这里。",
+  emptyKnown:   "还没有掌握任何单词哦～ 试试点\u201c认识啦\u201d积累你的战利品！",
+  emptyWrong:   "错题集是空的，去\u201c✍️ 去默写\u201d练练手吧！",
+  emptyAll:     "没有匹配的单词",
+  dailyTarget:  20,             // ★ 每天 20 个词（顺序连贯抽取）
+  wordsUrl:     "./words.json",
+  musicFile:    "music.mp3",
+  starColors:   ["#FFD194", "#FFB088", "#FFC9D2", "#E8C39E", "#F2E2C2", "#FFFFFF"],
+  quotes:       DAILY_QUOTES
 };
 
 // =============================================================
-// ★ 版本自检：检测到旧版本缓存 → 自动强制刷新一次
-//    （解决"HTML 是新的、JS 是旧的"导致的功能错乱）
+// ★ 版本自检：旧缓存 → 自动强制刷新一次
 // =============================================================
 function checkAppVersion() {
   try {
     const KEY = "beidanci_app_version";
     const saved = localStorage.getItem(KEY);
     if (saved && saved !== APP_VERSION && !sessionStorage.getItem("beidanci_reloaded")) {
-      // 旧缓存 → 记下标记并强制刷新一次
       sessionStorage.setItem("beidanci_reloaded", "1");
       localStorage.setItem(KEY, APP_VERSION);
       location.reload(true);
-      return true;   // 正在刷新，调用方应停止继续初始化
+      return true;
     }
     localStorage.setItem(KEY, APP_VERSION);
   } catch (e) {}
@@ -94,9 +85,9 @@ function checkAppVersion() {
 
 // =============================================================
 // State（localStorage 持久化）
-// ★ STORAGE_KEY 升到 v3：强制清空一次旧缓存，避免"没学却显示 10 个"
+// ★ STORAGE_KEY 升到 v4：数据结构大改，强制清空一次旧缓存
 // =============================================================
-const STORAGE_KEY = "beidanci_v3";
+const STORAGE_KEY = "beidanci_v4";
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -111,36 +102,39 @@ let state = {
   todayDone: 0,           // 今日完成数
   lastStudyDate: "",      // 上次学习日期
   streak: 0,              // 连续打卡
-  knownWords: [],         // ★ 长期累加：所有"认识"的词
-  hardWords: [],          // ★ 长期累加：所有"不认识"的词
-  history: []             // ★ 今日所有操作过的词（按日期清空）
+  knownWords: [],         // 长期累加：所有"认识"的词
+  hardWords: [],          // 长期累加：所有"不认识"的词
+  wrongWords: [],         // ★ 错题集（默写拼错的词，永久保存）
+  history: [],            // 今日所有操作过的词（按日期清空）
+  startDay: null,         // ★「从头开始」的锚点（年内第几天）
+  dictationLog: {}        // ★ 每日默写成绩 { "2026-10-21": {correct, total} }
 };
 
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
 }
 function loadState() {
   try {
     const s = localStorage.getItem(STORAGE_KEY);
-    if (s) {
-      const obj = JSON.parse(s);
-      state = Object.assign(state, obj);
-    }
-  } catch(e) {}
-  // 防御：脏数据修正
+    if (s) state = Object.assign(state, JSON.parse(s));
+  } catch (e) {}
+  // 脏数据防御
   if (!Array.isArray(state.knownWords)) state.knownWords = [];
   if (!Array.isArray(state.hardWords))  state.hardWords  = [];
-  if (!Array.isArray(state.history))     state.history    = [];
-  if (!Array.isArray(state.todayQueue))  state.todayQueue = [];
+  if (!Array.isArray(state.wrongWords)) state.wrongWords = [];
+  if (!Array.isArray(state.history))    state.history    = [];
+  if (!Array.isArray(state.todayQueue)) state.todayQueue = [];
+  if (typeof state.startDay !== "number" || state.startDay <= 0) state.startDay = null;
+  if (!state.dictationLog || typeof state.dictationLog !== "object") state.dictationLog = {};
 }
 
 // =============================================================
 // 词库加载（fetch ./words.json）— 异步、容错、可重试
 // =============================================================
-let wordList = [];            // 已加载的词库
-let wordListReady = false;    // 是否就绪
-let wordListError = null;     // 加载错误
-let wordListLoading = false;  // 是否正在加载
+let wordList = [];
+let wordListReady = false;
+let wordListError = null;
+let wordListLoading = false;
 
 async function loadWordList() {
   if (wordListLoading) return;
@@ -149,9 +143,7 @@ async function loadWordList() {
     const r = await fetch(CONFIG.wordsUrl, { cache: "no-store" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const data = await r.json();
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error("词库为空或格式错误");
-    }
+    if (!Array.isArray(data) || data.length === 0) throw new Error("词库为空或格式错误");
     wordList = data;
     wordListReady = true;
     wordListError = null;
@@ -162,10 +154,7 @@ async function loadWordList() {
     wordListLoading = false;
   }
 }
-
-function getWordList() {
-  return wordListReady ? wordList : [];
-}
+function getWordList() { return wordListReady ? wordList : []; }
 
 // =============================================================
 // 工具
@@ -179,32 +168,62 @@ function shuffle(arr) {
   return a;
 }
 
-// ★ 今天是今年的第几天（1 ~ 366）
-function dayOfYear() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 0);   // 上一年最后一天
-  const diff = now - start;
-  const oneDay = 1000 * 60 * 60 * 24;
-  return Math.floor(diff / oneDay);
+// ★ 某日期是今年的第几天（1 ~ 366）；不传参则取今天
+function dayOfYear(d) {
+  const now = d instanceof Date ? d : new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  return Math.floor((now - start) / 86400000);
+}
+function dateFromDayOffset(offset) {   // offset = 0 今天，1 昨天 …
+  const d = new Date();
+  d.setDate(d.getDate() - offset);
+  return d;
 }
 
-// ★ 每日任务：按词库顺序抽词（不再随机）
-//   startIndex = (年内天数 - 1) * 10，超出总词数则循环
-function pickTodayQueue() {
+// ★ 锚点：默认以"今天"为第 1 组（从词库开头 A 连贯背）
+//   用户点「🔁 从头开始」可重设锚点
+function getAnchorDay() {
+  return (typeof state.startDay === "number" && state.startDay > 0) ? state.startDay : dayOfYear();
+}
+
+// ★ 核心：按"组"连贯截取词库
+//   offsetDays = 距基准日的天数（可为负 → 空）
+//   超出总词数时 → 从词库末尾往前取 n 个（仍是连贯的一段，不跳词）
+function sliceQueue(offsetDays) {
   const list = getWordList();
   if (!list.length) return [];
   const n = Math.min(CONFIG.dailyTarget, list.length);
-  const day = dayOfYear();
-  const startIndex = ((day - 1) * n) % list.length;
-  let q = list.slice(startIndex, startIndex + n);
-  if (q.length < n) {                 // 越界时从头部接上，保证每天满 10 词
-    q = q.concat(list.slice(0, n - q.length));
-  }
-  return q;
+  const startIndex = offsetDays * n;
+  if (startIndex < 0) return [];
+  if (startIndex + n <= list.length) return list.slice(startIndex, startIndex + n);
+  const endStart = Math.max(0, list.length - n);
+  return list.slice(endStart, endStart + n);
+}
+
+// ★ 今日任务（以锚点为基准）
+function pickTodayQueue() {
+  return sliceQueue(dayOfYear() - getAnchorDay());
+}
+
+// ★ 历史任务（以元旦为基准的年度绝对日序，用于历史回顾）
+function pickHistoryQueue(dateObj) {
+  return sliceQueue(dayOfYear(dateObj) - 1);
+}
+
+// 今天背到第几组（用于展示进度）
+function missionGroupInfo() {
+  const list = getWordList();
+  if (!list.length) return { group: 0, total: 0 };
+  const n = Math.min(CONFIG.dailyTarget, list.length);
+  const offset = dayOfYear() - getAnchorDay();
+  const total = Math.ceil(list.length / n);
+  if (offset < 0) return { group: 0, total };
+  if (offset * n + n <= list.length) return { group: Math.floor(offset) + 1, total };
+  return { group: total, total };
 }
 
 function checkStreak() {
-  if (!wordListReady) return;     // 词库未就绪，跳过 streak 检查
+  if (!wordListReady) return;
   if (state.lastStudyDate !== today()) {
     if (state.lastStudyDate === yesterday()) {
       // 连续
@@ -213,24 +232,24 @@ function checkStreak() {
     }
     state.todayQueue = pickTodayQueue();
     state.todayDone = 0;
-    state.history = [];        // ★ 新的一天清空今日已学
+    state.history = [];        // 新的一天清空今日已学
   }
 }
 function updateStreak() {
   if (state.lastStudyDate !== today()) {
-    if (state.lastStudyDate === yesterday() || state.streak === 0) {
-      state.streak += 1;
-    } else if (state.lastStudyDate) {
-      state.streak = 1;
-    } else {
-      state.streak = 1;
-    }
+    if (state.lastStudyDate === yesterday() || state.streak === 0) state.streak += 1;
+    else if (state.lastStudyDate) state.streak = 1;
+    else state.streak = 1;
     state.lastStudyDate = today();
   }
 }
 function fmtTime(ts) {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+function fmtDateCn(d) {
+  const week = ["日","一","二","三","四","五","六"][d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 星期${week}`;
 }
 
 // =============================================================
@@ -247,21 +266,18 @@ function toast(msg) {
 }
 
 // =============================================================
-// ★★ 每日一句：独立渲染，不依赖任何异步加载
-//    （同一天恒定，刷新不变；跨天自动切换）
+// ★★ 每日一句（英中双语，不依赖任何异步加载）
 // =============================================================
 function renderQuote() {
   const el = document.getElementById("quoteText");
+  const zh = document.getElementById("quoteZh");
   if (!el) return;
-  const list = (Array.isArray(DAILY_QUOTES) && DAILY_QUOTES.length)
-    ? DAILY_QUOTES
-    : CONFIG.quotes;
+  const list = (Array.isArray(DAILY_QUOTES) && DAILY_QUOTES.length) ? DAILY_QUOTES : CONFIG.quotes;
   if (!list || !list.length) return;
-  const day = dayOfYear();
-  el.textContent = list[day % list.length];
+  const item = list[dayOfYear() % list.length];
+  el.textContent = item.en;
+  if (zh) zh.textContent = item.zh;
 }
-
-// 脚本一加载就渲染（不依赖 DOMContentLoaded，也不会停在 Loading）
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", renderQuote);
 } else {
@@ -269,38 +285,51 @@ if (document.readyState === "loading") {
 }
 
 // =============================================================
+// ★ 日期显示
+// =============================================================
+function renderDate() {
+  const el = document.getElementById("dateText");
+  if (el) el.textContent = "今天是 " + fmtDateCn(new Date());
+}
+
+// =============================================================
 // 渲染：顶部进度
 // =============================================================
 function renderTop() {
-  const todayText = document.getElementById("todayText");
-  if (todayText) {
-    todayText.textContent = `${CONFIG.todayLabel}：${state.todayDone} / ${state.todayQueue.length}`;
-  }
-  const streakNum = document.getElementById("streakNum");
-  if (streakNum) streakNum.textContent = state.streak;
+  const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setNum("todayText", `${CONFIG.todayLabel}：${state.todayDone} / ${state.todayQueue.length}`);
+  setNum("streakNum", state.streak);
 
-  // ★ 今日已学统计（按日期清空）
   const hist = state.history || [];
   const knownN = hist.filter(h => h.status === "known").length;
   const unknownN = hist.length - knownN;
-  const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setNum("studyCount", hist.length);
   setNum("knownCount", knownN);
   setNum("unknownCount", unknownN);
 
-  // ★ 累计掌握（永久累加）
   const totalKnown = (state.knownWords || []).length;
   setNum("knownTotal", totalKnown);
   const totalWords = wordListReady ? wordList.length : 0;
-  const cumPct = totalWords > 0 ? Math.round(totalKnown / totalWords * 100) : 0;
-  setNum("cumulativePct", cumPct);
+  setNum("cumulativePct", totalWords > 0 ? Math.round(totalKnown / totalWords * 100) : 0);
 
-  // 进度条
+  // Tab 计数
+  setNum("hardCount", (state.hardWords || []).length);
+  setNum("knownCountTab", totalKnown);
+  setNum("wrongCount", (state.wrongWords || []).length);
+  setNum("allCount", totalWords);
+
   const fill = document.getElementById("progressFill");
   if (fill) {
     const pct = state.todayQueue.length > 0
       ? Math.round(state.todayDone / state.todayQueue.length * 100) : 0;
     fill.style.width = pct + "%";
+  }
+
+  // 今日任务副标题：第几组 / 共几组
+  const sub = document.getElementById("missionSub");
+  if (sub && wordListReady) {
+    const g = missionGroupInfo();
+    sub.textContent = g.total > 0 ? `第 ${g.group} / ${g.total} 组 · 每天 20 词` : "每天 20 词";
   }
 }
 
@@ -320,10 +349,7 @@ function renderCard(keepFlipped = false) {
     state.todayQueue = pickTodayQueue();
     state.todayDone = 0;
   }
-  if (currentIndex >= state.todayQueue.length) {
-    onAllDone();
-    return;
-  }
+  if (currentIndex >= state.todayQueue.length) { onAllDone(); return; }
   const w = state.todayQueue[currentIndex];
   document.getElementById("wordMain").textContent = w.word;
   const back = document.getElementById("wordMainBack");
@@ -332,13 +358,12 @@ function renderCard(keepFlipped = false) {
   document.getElementById("posTag").textContent = w.pos || "";
   document.getElementById("meaning").textContent = w.meaning || "";
   document.getElementById("example").textContent = w.example || "";
-  // 重置卡片状态
   cardEl.classList.remove("fly-out-left", "fly-out-right");
   if (keepFlipped) cardEl.classList.add("flipped");
   else cardEl.classList.remove("flipped");
   void cardEl.offsetWidth;
   renderTop();
-  renderMission();      // ★ 同步今日任务列表高亮
+  renderMission();
   updateNavButtons();
 }
 
@@ -360,7 +385,6 @@ function onAllDone() {
   toast(CONFIG.toastAllDone);
   fireConfetti();
   setTimeout(() => {
-    // 重新开始新一组（保留 history）
     state.todayQueue = pickTodayQueue();
     currentIndex = 0;
     state.todayDone = 0;
@@ -380,7 +404,7 @@ function toggleFlip() {
 // =============================================================
 // ★ 左右翻阅
 // =============================================================
-let navLock = false;   // 平滑过渡锁：避免动画中连点导致错乱
+let navLock = false;
 function goPrev() {
   if (navLock) return;
   const card = document.getElementById("flashcard");
@@ -395,8 +419,6 @@ function goNext() {
   if (currentIndex >= state.todayQueue.length - 1) { toast(CONFIG.toastNavEdge); return; }
   navTo(currentIndex + 1);
 }
-
-// 翻阅核心：若当前在背面，先翻回正面再切换文本
 function navTo(idx) {
   const card = document.getElementById("flashcard");
   if (card && card.classList.contains("flipped")) {
@@ -427,13 +449,12 @@ function updateNavButtons() {
 // 左右飞（认识 / 不认识）— 长期累加 + 互斥
 // =============================================================
 function answer(isKnown) {
-  if (!wordListReady) return;     // 词库未就绪，不响应
+  if (!wordListReady) return;
   const w = state.todayQueue[currentIndex];
   if (!w) return;
   const wordName = w.word;
   const status = isKnown ? "known" : "unknown";
 
-  // ★ 今日已学（按日期清空；可重复覆盖同一天对同一词的操作）
   if (!Array.isArray(state.history)) state.history = [];
   const existingIdx = state.history.findIndex(h => h.word === wordName);
   if (existingIdx >= 0) {
@@ -443,7 +464,6 @@ function answer(isKnown) {
     state.history.push({ word: wordName, status, time: Date.now() });
   }
 
-  // ★ 核心：长期累加 + 互斥（同一词只在一个列表里）
   if (isKnown) {
     if (!Array.isArray(state.knownWords)) state.knownWords = [];
     if (!Array.isArray(state.hardWords))  state.hardWords  = [];
@@ -456,33 +476,26 @@ function answer(isKnown) {
     state.knownWords = state.knownWords.filter(x => x !== wordName);
   }
 
-  // 飞出方向
   const card = document.getElementById("flashcard");
   if (card) card.classList.add(isKnown ? "fly-out-right" : "fly-out-left");
   toast(isKnown ? CONFIG.toastKnown : CONFIG.toastUnknown);
   updateNavButtons();
 
-  // ★ 立即推进 currentIndex（这样 prev 才能回到刚飞出的那个词）
   currentIndex++;
   state.todayDone++;
   updateStreak();
   saveState();
 
   setTimeout(() => {
-    if (currentIndex >= state.todayQueue.length) {
-      onAllDone();
-    } else {
-      renderCard();
-    }
+    if (currentIndex >= state.todayQueue.length) onAllDone();
+    else renderCard();
   }, 600);
 }
 
 // =============================================================
 // TTS 语音朗读（兼容 iOS Safari / 微信内置浏览器）
 // =============================================================
-let ttsVoice = null;        // 缓存英文发音人（避免 speak 时异步查询）
-
-// 预热发音引擎：iOS/微信首次交互前 getVoices() 为空，提前触发加载并缓存
+let ttsVoice = null;
 function warmupVoices() {
   try {
     if (!("speechSynthesis" in window)) return;
@@ -498,10 +511,8 @@ function warmupVoices() {
     window.speechSynthesis.onvoiceschanged = pick;
   } catch (_) {}
 }
-
 function speakWord(word) {
   if (!word) return;
-  // 容错：浏览器不支持
   if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance === "undefined") {
     toast(CONFIG.toastNoTTS);
     return;
@@ -512,14 +523,13 @@ function speakWord(word) {
     u.lang = "en-US";
     u.rate = 0.85;
     u.pitch = 1;
-    if (ttsVoice) u.voice = ttsVoice;      // 使用预热的英文发音人
-    // ★ 必须在用户点击的同步调用栈里直接 speak，异步会触发移动端拦截
+    if (ttsVoice) u.voice = ttsVoice;
+    // ★ 必须在用户点击的同步调用栈里直接 speak
     window.speechSynthesis.speak(u);
   } catch (e) {
     toast(CONFIG.toastNoTTS);
   }
 }
-
 function speak() {
   const w = state.todayQueue[currentIndex];
   if (w) speakWord(w.word);
@@ -532,16 +542,13 @@ function renderMission() {
   const list = document.getElementById("missionList");
   if (!list) return;
 
-  // 词库还没加载好 → 给明确状态 + 重试入口（不再空白）
-  if (!wordListReady) {
-    if (state.todayQueue.length === 0) {
-      list.innerHTML = `
-        <div class="mission-empty">
-          ${wordListLoading ? "今日任务生成中…" : "词库未加载，无法生成今日任务"}
-          ${wordListLoading ? "" : '<button class="mission-retry" onclick="retryWordList()">🔄 重新加载词库</button>'}
-        </div>`;
-      return;
-    }
+  if (!wordListReady && state.todayQueue.length === 0) {
+    list.innerHTML = `
+      <div class="mission-empty">
+        ${wordListLoading ? "今日任务生成中…" : "词库未加载，无法生成今日任务"}
+        ${wordListLoading ? "" : '<button class="mission-retry" onclick="retryWordList()">🔄 重新加载词库</button>'}
+      </div>`;
+    return;
   }
 
   const q = state.todayQueue || [];
@@ -564,31 +571,10 @@ function renderMission() {
   }).join("");
 }
 
-// 词库加载失败后手动重试
-async function retryWordList() {
-  toast("正在重新加载词库…");
-  await loadWordList();
-  if (wordListReady) {
-    checkStreak();
-    state.todayQueue = pickTodayQueue();
-    currentIndex = 0;
-    saveState();
-    renderCard();
-    renderMission();
-    renderTop();
-    toast("词库加载成功 ✓");
-  } else {
-    renderMission();
-    toast("词库仍无法加载，请检查 words.json 是否存在");
-  }
-}
-
-// 点击今日任务里的词 → 同步朗读 + 跳到对应卡片
 function jumpToWord(word) {
   const idx = (state.todayQueue || []).findIndex(w => w.word === word);
   if (idx < 0) return;
-  // ★ 先同步朗读（必须在用户手势的调用栈内，否则 iOS/微信会拦截发音）
-  speakWord(word);
+  speakWord(word);            // ★ 同步朗读
   if (idx === currentIndex) return;
   const card = document.getElementById("flashcard");
   if (card && card.classList.contains("flipped")) {
@@ -607,47 +593,250 @@ function jumpToWord(word) {
   }
 }
 
+async function retryWordList() {
+  toast("正在重新加载词库…");
+  await loadWordList();
+  if (wordListReady) {
+    checkStreak();
+    if (state.todayQueue.length === 0) state.todayQueue = pickTodayQueue();
+    currentIndex = 0;
+    saveState();
+    renderCard();
+    renderMission();
+    renderTop();
+    renderAll();
+    renderWrong();
+    setupHistorySelect();
+    toast("词库加载成功 ✓");
+  } else {
+    renderMission();
+    toast("词库仍无法加载，请检查 words.json 是否存在");
+  }
+}
+
 // =============================================================
-// ★ 今日任务面板：展开 / 收起
-//    折叠本身由原生 <details> 完成（无 JS 依赖）；
-//    这里只做增强：记忆展开状态 + 移动端默认折叠
+// ★ 今日任务面板：原生 <details> + 状态记忆
 // =============================================================
 const MISSION_OPEN_KEY = "beidanci_mission_open";
 function setupMissionPanel() {
   const panel = document.getElementById("missionPanel");
   if (!panel) return;
-
-  // 恢复上次展开状态
   try {
     const saved = localStorage.getItem(MISSION_OPEN_KEY);
     if (saved === "1") panel.setAttribute("open", "");
     else if (saved === "0") panel.removeAttribute("open");
+    else if (window.innerWidth < 600) panel.removeAttribute("open");
   } catch (e) {}
-
-  // 移动端首次访问：默认折叠，避免首屏被遮挡（已有记录则尊重用户选择）
-  try {
-    if (localStorage.getItem(MISSION_OPEN_KEY) === null && window.innerWidth < 600) {
-      panel.removeAttribute("open");
-    }
-  } catch (e) {}
-
-  // 记录状态
   panel.addEventListener("toggle", () => {
-    try {
-      localStorage.setItem(MISSION_OPEN_KEY, panel.open ? "1" : "0");
-    } catch (e) {}
+    try { localStorage.setItem(MISSION_OPEN_KEY, panel.open ? "1" : "0"); } catch (e) {}
   });
+}
 
-  // 点击标题也切换（部分浏览器 summary 点击 + toggle 事件会重复，这里做防抖）
-  const head = document.getElementById("missionHead");
-  if (head) {
-    head.addEventListener("click", (e) => {
-      if (e.target.closest(".mission-toggle")) {
-        e.preventDefault();
-        panel.open = !panel.open;
-      }
-    });
+// =============================================================
+// ★★ 历史回顾（只读查看过去某天的任务）
+// =============================================================
+function setupHistorySelect() {
+  const sel = document.getElementById("historySelect");
+  if (!sel) return;
+  const opts = [];
+  for (let i = 0; i < 14; i++) {
+    const d = dateFromDayOffset(i);
+    const label = i === 0 ? "今天" : (i === 1 ? "昨天" : `${d.getMonth()+1}/${d.getDate()}`);
+    opts.push(`<option value="${i}">${label}</option>`);
   }
+  sel.innerHTML = opts.join("");
+  sel.value = "0";
+  sel.onchange = () => renderHistory(parseInt(sel.value, 10) || 0);
+  renderHistory(0);
+}
+
+function renderHistory(offset) {
+  const box = document.getElementById("historyList");
+  if (!box) return;
+  if (!wordListReady) { box.innerHTML = ""; return; }
+  const d = dateFromDayOffset(offset);
+  // ★ 今天 → 与上方「今日任务」完全一致；历史日期 → 按年度日序（1月1日起 每天20词）推算
+  const q = (offset === 0) ? pickTodayQueue() : pickHistoryQueue(d);
+  if (!q.length) {
+    box.innerHTML = `<div class="history-empty">这一天还没有分配任务</div>`;
+    return;
+  }
+  const log = state.dictationLog[today()] || null;
+  const tag = offset === 0 ? "今天" : `${d.getMonth()+1}月${d.getDate()}日`;
+  const note = offset === 0 ? "（与上方今日任务一致）" : "（按年度日序推算）";
+  box.innerHTML = `
+    <div class="history-title">${tag}的任务${note}
+      ${offset === 0 && log ? `<span class="history-log">默写 ${log.correct}/${log.total}</span>` : ""}
+    </div>
+    <div class="history-words">${q.map(w => `
+      <span class="history-word" onclick="speakWord('${w.word}')" title="点击朗读">${w.word}</span>
+    `).join("")}</div>`;
+}
+
+// =============================================================
+// ★★ 默写模式（全屏遮罩）
+// =============================================================
+const dictation = {
+  queue: [],        // 今日 20 词
+  index: 0,
+  correct: 0,
+  wrong: [],        // 本次默写错的词
+  locked: false     // 判定后短暂锁定，防止连点
+};
+
+function openDictation() {
+  if (!wordListReady) { toast("词库还没加载好，请稍候…"); return; }
+  if (!state.todayQueue.length) { toast("今日任务还没生成"); return; }
+  dictation.queue = state.todayQueue.slice();
+  dictation.index = 0;
+  dictation.correct = 0;
+  dictation.wrong = [];
+  dictation.locked = false;
+
+  const ov = document.getElementById("dictationOverlay");
+  const stage = document.getElementById("dictationStage");
+  const result = document.getElementById("dictationResult");
+  if (stage) stage.style.display = "";
+  if (result) result.style.display = "none";
+  if (ov) { ov.classList.add("show"); ov.setAttribute("aria-hidden", "false"); }
+  document.body.classList.add("dictation-open");
+  renderDictationItem();
+}
+
+function closeDictation() {
+  const ov = document.getElementById("dictationOverlay");
+  if (ov) { ov.classList.remove("show"); ov.setAttribute("aria-hidden", "true"); }
+  document.body.classList.remove("dictation-open");
+  dictation.locked = false;
+}
+
+function renderDictationItem() {
+  const w = dictation.queue[dictation.index];
+  if (!w) { finishDictation(); return; }
+  const prog = document.getElementById("dictationProgress");
+  if (prog) prog.textContent = `${dictation.index + 1} / ${dictation.queue.length}`;
+  const mean = document.getElementById("dictationMeaning");
+  if (mean) mean.textContent = w.meaning || w.word;
+  const input = document.getElementById("dictationInput");
+  if (input) { input.value = ""; input.disabled = false; setTimeout(() => input.focus(), 60); }
+  const fb = document.getElementById("dictationFeedback");
+  if (fb) { fb.textContent = ""; fb.className = "dictation-feedback"; }
+  const btn = document.getElementById("dictationSubmit");
+  if (btn) { btn.disabled = false; btn.textContent = "提交"; }
+  dictation.locked = false;
+}
+
+function submitDictation() {
+  if (dictation.locked) return;
+  const w = dictation.queue[dictation.index];
+  if (!w) return;
+  const input = document.getElementById("dictationInput");
+  const val = (input.value || "").trim().toLowerCase();
+  if (!val) { toast("请先输入英文单词"); return; }
+
+  const fb = document.getElementById("dictationFeedback");
+  const btn = document.getElementById("dictationSubmit");
+  dictation.locked = true;
+  input.disabled = true;
+  if (btn) btn.disabled = true;
+
+  const right = val === w.word.toLowerCase();
+  if (right) {
+    dictation.correct++;
+    if (fb) { fb.className = "dictation-feedback ok"; fb.textContent = "✓ 拼写正确"; }
+  } else {
+    dictation.wrong.push(w);
+    addWrongWord(w.word);                      // ★ 加入错题集（永久保存）
+    if (fb) {
+      fb.className = "dictation-feedback err";
+      fb.innerHTML = `✗ 拼写错误，正确拼写：<strong class="dictation-answer">${w.word}</strong>`;
+    }
+  }
+
+  setTimeout(() => {
+    dictation.index++;
+    if (dictation.index >= dictation.queue.length) finishDictation();
+    else renderDictationItem();
+  }, right ? 900 : 1900);
+}
+
+function finishDictation() {
+  const total = dictation.queue.length;
+  const correct = dictation.correct;
+  const pct = total > 0 ? Math.round(correct / total * 100) : 0;
+
+  // 记录今日默写成绩
+  state.dictationLog[today()] = { correct, total };
+  saveState();
+
+  const stage = document.getElementById("dictationStage");
+  const result = document.getElementById("dictationResult");
+  if (stage) stage.style.display = "none";
+  if (result) result.style.display = "";
+
+  const emoji = document.getElementById("dictationResultEmoji");
+  const score = document.getElementById("dictationScore");
+  const detail = document.getElementById("dictationDetail");
+  if (emoji) emoji.textContent = pct === 100 ? "🏆" : (pct >= 80 ? "🎉" : (pct >= 60 ? "💪" : "📖"));
+  if (score) score.textContent = `正确率 ${pct}%`;
+  if (detail) {
+    const wrongList = dictation.wrong.length
+      ? `<div class="dictation-wrong-list">${dictation.wrong.map(w =>
+          `<span class="dictation-wrong-item" onclick="speakWord('${w.word}')">${w.word}</span>`).join("")}</div>`
+      : `<div class="dictation-perfect">全对！太棒了 ✨</div>`;
+    detail.innerHTML = `答对 ${correct} / ${total} 题${dictation.wrong.length ? "，错词已收入错题集：" : ""}${wrongList}`;
+  }
+  renderWrong();
+  renderTop();
+  renderHistory(parseInt((document.getElementById("historySelect") || {}).value, 10) || 0);
+}
+
+// =============================================================
+// ★ 错题集 Tab
+// =============================================================
+function addWrongWord(word) {
+  if (!Array.isArray(state.wrongWords)) state.wrongWords = [];
+  if (!state.wrongWords.includes(word)) state.wrongWords.push(word);
+  saveState();
+  renderTop();        // ★ 刷新「错题集」Tab 计数
+}
+function removeFromWrong(word) {
+  state.wrongWords = state.wrongWords.filter(x => x !== word);
+  saveState();
+  renderTop();
+  renderWrong();
+  toast("已移出错题集");
+}
+function renderWrong() {
+  const list = document.getElementById("wrongList");
+  if (!list) return;
+  const words = state.wrongWords || [];
+  const cnt = document.getElementById("wrongCount");
+  if (cnt) cnt.textContent = words.length;
+  if (words.length === 0) {
+    list.innerHTML = `<div class="empty-hint">${CONFIG.emptyWrong}</div>`;
+    return;
+  }
+  const ordered = words.slice().reverse();
+  const src = wordList;
+  list.innerHTML = ordered.map(w => {
+    const word = src.find(x => x.word === w);
+    const phonetic = word ? (word.phonetic || "") : "";
+    const meaning  = word ? (word.meaning || "") : "";
+    const pos      = word ? (word.pos || "") : "";
+    return `
+      <div class="word-item word-item-wrong">
+        <div class="word-item-row">
+          <div class="word-item-clickable" onclick="speakWord('${w}')" title="点击朗读">
+            <span class="word-mark mark-wrong" title="错题">✗</span>
+            <span class="word-item-w">${w}</span>
+            <span style="font-size:13px;color:var(--gold);font-family:var(--font-num);">${phonetic}</span>
+          </div>
+          <button class="word-item-remove" onclick="removeFromWrong('${w}')" title="移出错题集">✕</button>
+        </div>
+        <div class="word-item-m">${meaning}${pos ? " · " + pos : ""}</div>
+      </div>`;
+  }).join("");
 }
 
 // =============================================================
@@ -657,16 +846,14 @@ function renderKnown() {
   const list = document.getElementById("knownList");
   if (!list) return;
   const words = state.knownWords || [];
-  const cnt = document.getElementById("knownCountTab");
-  if (cnt) cnt.textContent = words.length;
   if (words.length === 0) {
     list.innerHTML = `<div class="empty-hint">${CONFIG.emptyKnown}</div>`;
     return;
   }
   const ordered = words.slice().reverse();
-  const list2 = wordList;
+  const src = wordList;
   list.innerHTML = ordered.map(w => {
-    const word = list2.find(x => x.word === w);
+    const word = src.find(x => x.word === w);
     const phonetic = word ? (word.phonetic || "") : "";
     const meaning  = word ? (word.meaning || "") : w;
     const pos      = word ? (word.pos || "") : "";
@@ -684,8 +871,6 @@ function renderKnown() {
       </div>`;
   }).join("");
 }
-
-// 把"已掌握"的词移回"生词本"
 function unmarkKnown(word) {
   state.knownWords = state.knownWords.filter(x => x !== word);
   if (!state.hardWords.includes(word)) state.hardWords.push(word);
@@ -703,15 +888,13 @@ function renderHard() {
   const list = document.getElementById("hardList");
   if (!list) return;
   const words = state.hardWords || [];
-  const cnt = document.getElementById("hardCount");
-  if (cnt) cnt.textContent = words.length;
   if (words.length === 0) {
     list.innerHTML = `<div class="empty-hint">${CONFIG.emptyHard}</div>`;
     return;
   }
-  const list2 = wordList;
+  const src = wordList;
   list.innerHTML = words.map(w => {
-    const word = list2.find(x => x.word === w);
+    const word = src.find(x => x.word === w);
     const phonetic = word ? (word.phonetic || "") : "";
     const meaning  = word ? (word.meaning || "") : w;
     const pos      = word ? (word.pos || "") : "";
@@ -741,8 +924,6 @@ function renderAll() {
   const list = document.getElementById("allList");
   if (!list) return;
   const source = getWordList();
-  const cnt = document.getElementById("allCount");
-  if (cnt) cnt.textContent = source.length;
   if (!wordListReady) {
     list.innerHTML = `<div class="empty-hint">词库加载中…</div>`;
     return;
@@ -759,14 +940,13 @@ function renderAll() {
     list.innerHTML = `<div class="empty-hint">${CONFIG.emptyAll}</div>`;
     return;
   }
-  // ★ 性能优化：超过 500 词时分段渲染
   const MAX = 500;
   const show = filtered.slice(0, MAX);
   const more = filtered.length - show.length;
   list.innerHTML = show.map(w => `
     <div class="word-item">
       <div class="word-item-left" onclick="speakWord('${w.word}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:4px 6px;margin:-4px -6px;border-radius:8px;" title="点击朗读">
-        <span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--gold-bg);color:var(--gold);font-size:12px;font-weight:800;font-family:var(--font-num);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${w.word.charAt(0).toUpperCase()}</span>
+        <span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--gold-light);color:var(--gold);font-size:12px;font-weight:800;font-family:var(--font-num);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${w.word.charAt(0).toUpperCase()}</span>
         <div style="flex:1;min-width:0;">
           <div class="word-item-w">${w.word} <span style="font-size:13px;color:var(--gold);font-family:var(--font-num);">${w.phonetic || ""}</span></div>
           <div class="word-item-m">${w.meaning || ""}${w.pos ? " · " + w.pos : ""}</div>
@@ -786,6 +966,7 @@ function switchTab(name) {
   if (pane) pane.classList.add("active");
   if (name === "hard")  renderHard();
   if (name === "known") renderKnown();
+  if (name === "wrong") renderWrong();
   if (name === "all")   renderAll();
 }
 
@@ -802,9 +983,7 @@ function setupMusic() {
   function startOnce() {
     if (musicStarted) return;
     musicStarted = true;
-    music.play().then(() => btn.classList.add("playing")).catch(() => {
-      musicStarted = false;
-    });
+    music.play().then(() => btn.classList.add("playing")).catch(() => { musicStarted = false; });
     document.removeEventListener("click", startOnce);
     document.removeEventListener("touchstart", startOnce);
   }
@@ -827,8 +1006,7 @@ function setupStarfield() {
   const ctx = canvas.getContext("2d");
   let W = canvas.width = window.innerWidth;
   let H = canvas.height = window.innerHeight;
-  const isMobile = window.innerWidth < 600;
-  const COUNT = isMobile ? 30 : 80;
+  const COUNT = window.innerWidth < 600 ? 30 : 80;
   const stars = [];
   for (let i = 0; i < COUNT; i++) {
     stars.push({
@@ -880,9 +1058,8 @@ function fireConfetti() {
   const ctx = canvas.getContext("2d");
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  const N = 90;
   const pieces = [];
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < 90; i++) {
     pieces.push({
       x: window.innerWidth / 2 + (Math.random() - 0.5) * 200,
       y: window.innerHeight / 2,
@@ -906,11 +1083,10 @@ function fireConfetti() {
       if (p.life > p.maxLife) continue;
       alive = true;
       p.x += p.vx; p.y += p.vy; p.vy += p.g; p.rot += p.vr;
-      const alpha = 1 - p.life / p.maxLife;
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = 1 - p.life / p.maxLife;
       ctx.fillStyle = p.color;
       ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
       ctx.restore();
@@ -931,8 +1107,7 @@ function setupSwipe() {
   const TH = 80;
   card.addEventListener("touchstart", (e) => {
     if (e.touches.length !== 1) return;
-    sx = e.touches[0].clientX;
-    sy = e.touches[0].clientY;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
     dx = dy = 0; active = true;
   }, { passive: true });
   card.addEventListener("touchmove", (e) => {
@@ -949,22 +1124,19 @@ function setupSwipe() {
     card.style.transform = "";
     card.style.opacity = "";
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > TH) {
-      if (dx < 0) answer(true);
-      else answer(false);
+      if (dx < 0) answer(true); else answer(false);
     }
   });
 }
 
 // =============================================================
-// 软提示（fetch 失败）— 大 Toast + 顶部 banner，不隐藏主区
+// 软提示（fetch 失败）
 // =============================================================
 function showSoftHint(e) {
   const isFile = location.protocol === "file:";
   const msg = isFile
     ? "本地直接打开无法读取词库，请用 VS Code 的 Live Server 插件，或上传到 GitHub Pages 查看 ✨"
     : `词库加载失败：${(e && e.message) || "未知错误"}。请检查 words.json 是否与 index.html 在同目录。`;
-
-  // 1) 顶部持久 banner
   const banner = document.createElement("div");
   banner.className = "soft-banner";
   banner.innerHTML = `
@@ -972,8 +1144,6 @@ function showSoftHint(e) {
     <span class="soft-banner-text">${msg}</span>
     <button class="soft-banner-close" onclick="this.parentNode.remove()" title="知道了">✕</button>`;
   document.body.appendChild(banner);
-
-  // 2) 大 Toast（停留更久）
   const t = document.getElementById("toast");
   if (t) {
     t.textContent = msg;
@@ -984,22 +1154,21 @@ function showSoftHint(e) {
 }
 
 // =============================================================
-// 启动（async：等词库就绪再渲染主交互区）
+// 启动
 // =============================================================
 async function init() {
-  // ★ 版本自检：旧缓存 → 强制刷新一次
-  if (checkAppVersion()) return;
+  if (checkAppVersion()) return;      // 旧缓存 → 强制刷新
 
   loadState();
-  // 启动装饰（不依赖词库）
   setupStarfield();
   setupMusic();
   setupSwipe();
-  setupMissionPanel();     // ★ 今日任务面板（原生 details + 状态记忆）
-  warmupVoices();         // ★ TTS 引擎预热（iOS/微信兼容）
+  setupMissionPanel();
+  warmupVoices();
 
-  // ★ 每日一句：立即渲染（不依赖词库，绝不卡 Loading）
-  renderQuote();
+  renderDate();        // ★ 日期
+  renderQuote();       // ★ 每日一句（双语）
+  renderMission();     // ★ 今日任务占位
 
   // 事件绑定
   const card = document.getElementById("flashcard");
@@ -1011,12 +1180,7 @@ async function init() {
     });
   }
   const speakBtn = document.getElementById("speakBtn");
-  if (speakBtn) {
-    speakBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      speak();
-    });
-  }
+  if (speakBtn) speakBtn.addEventListener("click", (e) => { e.stopPropagation(); speak(); });
   const btnUnknown = document.getElementById("btnUnknown");
   if (btnUnknown) btnUnknown.addEventListener("click", () => answer(false));
   const btnKnown = document.getElementById("btnKnown");
@@ -1030,19 +1194,51 @@ async function init() {
   });
   const searchBox = document.getElementById("searchBox");
   if (searchBox) {
-    searchBox.addEventListener("input", (e) => {
-      allSearchQ = e.target.value;
-      renderAll();
-    });
+    searchBox.addEventListener("input", (e) => { allSearchQ = e.target.value; renderAll(); });
   }
 
-  // ★ 今日任务列表：先占位，随后渲染
-  renderMission();
+  // ★ 去默写
+  const dictationBtn = document.getElementById("dictationBtn");
+  if (dictationBtn) dictationBtn.addEventListener("click", openDictation);
+  const dictationClose = document.getElementById("dictationClose");
+  if (dictationClose) dictationClose.addEventListener("click", closeDictation);
+  const dictationSubmit = document.getElementById("dictationSubmit");
+  if (dictationSubmit) dictationSubmit.addEventListener("click", submitDictation);
+  const dictationAgain = document.getElementById("dictationAgain");
+  if (dictationAgain) dictationAgain.addEventListener("click", openDictation);
+  const dictationDone = document.getElementById("dictationDone");
+  if (dictationDone) dictationDone.addEventListener("click", closeDictation);
+  const dictationInput = document.getElementById("dictationInput");
+  if (dictationInput) {
+    dictationInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); submitDictation(); }
+    });
+  }
+  const overlay = document.getElementById("dictationOverlay");
+  if (overlay) {
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeDictation(); });
+  }
+
+  // ★ 从头开始
+  const restartBtn = document.getElementById("restartBtn");
+  if (restartBtn) {
+    restartBtn.addEventListener("click", () => {
+      if (!wordListReady) { toast("词库还没加载好，请稍候…"); return; }
+      state.startDay = dayOfYear();          // 锚点设为今天 → 从 A 开头
+      state.todayQueue = pickTodayQueue();
+      currentIndex = 0;
+      state.todayDone = 0;
+      saveState();
+      renderCard();
+      renderTop();
+      setupHistorySelect();
+      toast("已从词库开头（A）重新开始 ✓");
+    });
+  }
 
   // ★ 异步加载词库
   await loadWordList();
 
-  // 加载失败 → 软提示（不隐藏主区，今日任务给出重试入口）
   if (!wordListReady) {
     showSoftHint(wordListError);
     showEmptyCard("词库加载中…");
@@ -1051,7 +1247,6 @@ async function init() {
     return;
   }
 
-  // 加载成功 → 检查 streak + 渲染首屏
   checkStreak();
   if (state.todayQueue.length === 0) {
     state.todayQueue = pickTodayQueue();
@@ -1059,17 +1254,17 @@ async function init() {
   }
   saveState();
 
-  // 调试：URL 含 #flip 时首屏直接显示背面
   const startFlipped = location.hash === "#flip" || location.search.includes("flip=1");
-  // 调试：URL 含 ?tab=xxx 时默认显示指定 Tab
   const tabParam = new URLSearchParams(location.search).get("tab");
 
   renderCard(startFlipped);
   renderTop();
   renderHard();
   renderKnown();
+  renderWrong();
   renderAll();
   renderMission();
+  setupHistorySelect();
   if (tabParam) switchTab(tabParam);
 }
 

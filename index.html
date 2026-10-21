@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Ma+Shan+Zheng&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
-  <!-- ★ 加版本号：强制浏览器拉取最新样式（避免手机旧缓存） -->
-  <link rel="stylesheet" href="style.css?v=3" />
+  <!-- ★ 版本号 v4：强制浏览器拉取最新样式 -->
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
   <canvas id="starfield"></canvas>
@@ -32,6 +32,13 @@
         <span id="streakUnit">天</span>
       </span>
     </div>
+
+    <!-- ★ 日期显示 + 从头开始 -->
+    <div class="date-row">
+      <span class="date-text" id="dateText">今天是 …</span>
+      <button class="restart-btn" id="restartBtn" title="从词库开头（A）重新开始连贯背诵">🔁 从头开始</button>
+    </div>
+
     <div class="progress-track">
       <div class="progress-fill" id="progressFill"></div>
     </div>
@@ -51,27 +58,38 @@
 
   <!-- ★★ 今日任务 + 每日一句 ★★ -->
   <section class="mission-area">
-    <!--
-      今日任务：按词库顺序每天固定 10 词
-      ★ 使用原生 <details>：即使 JS 没跑也能展开/收起（零依赖，不会"点不开"）
-    -->
     <details class="mission-panel" id="missionPanel" open>
       <summary class="mission-head" id="missionHead" title="点击展开 / 收起">
         <span class="mission-title">📋 今日任务</span>
-        <span class="mission-sub">按词库顺序 · 每天 10 词</span>
+        <span class="mission-sub" id="missionSub">按词库顺序 · 每天 20 词</span>
         <span class="mission-toggle" id="missionToggle" aria-hidden="true">▾</span>
       </summary>
       <div class="mission-body" id="missionBody">
+        <!-- ★ 去默写按钮（紧贴列表上方，始终可见） -->
+        <div class="mission-actions">
+          <button class="dictation-btn" id="dictationBtn">✍️ 去默写</button>
+        </div>
         <div class="mission-list" id="missionList">
           <div class="mission-empty">今日任务加载中…</div>
         </div>
       </div>
     </details>
 
-    <!-- 每日一句：HTML 内联静态兜底，JS 再覆盖（任何情况下都不会停在 Loading） -->
+    <!-- ★ 历史回顾（独立常驻，不被列表挤出可视区） -->
+    <div class="history-panel">
+      <div class="history-row">
+        <span class="history-label">📅 历史回顾</span>
+        <select class="history-select" id="historySelect" aria-label="选择历史日期"></select>
+      </div>
+      <div class="history-list" id="historyList"></div>
+      <div class="history-tip">📌 历史日期按「1月1日起每天 20 词」推算；仅供查看，不影响当前进度</div>
+    </div>
+
+    <!-- 每日一句：英文 + 中文翻译 -->
     <div class="quote-card">
       <span class="quote-mark">"</span>
       <div class="quote-text" id="quoteText">Every day may not be good, but there's something good in every day.</div>
+      <div class="quote-zh" id="quoteZh">每一天未必都美好，但每一天都有值得珍惜的美好。</div>
       <div class="quote-label">— 每日一句 —</div>
     </div>
   </section>
@@ -118,11 +136,12 @@
     </button>
   </div>
 
-  <!-- ★ 底部 Tab 区域：生词本 / 已掌握 / 全部词汇 -->
+  <!-- ★ 底部 Tab 区域：生词本 / 已掌握 / 错题集 / 全部词汇 -->
   <section class="tabs-area">
     <div class="tab-headers">
       <button class="tab-header active" data-tab="hard">📒 生词本 <span class="tab-count" id="hardCount">0</span></button>
       <button class="tab-header" data-tab="known">🏆 已掌握 <span class="tab-count" id="knownCountTab">0</span></button>
+      <button class="tab-header" data-tab="wrong">📕 错题集 <span class="tab-count" id="wrongCount">0</span></button>
       <button class="tab-header" data-tab="all">📚 全部词汇 <span class="tab-count" id="allCount">0</span></button>
     </div>
     <div class="tab-body">
@@ -132,6 +151,9 @@
       <div class="tab-pane" id="pane-known">
         <div id="knownList"></div>
       </div>
+      <div class="tab-pane" id="pane-wrong">
+        <div id="wrongList"></div>
+      </div>
       <div class="tab-pane" id="pane-all">
         <input type="text" class="search-box" id="searchBox" placeholder="搜索单词或释义…" />
         <div id="allList"></div>
@@ -139,10 +161,43 @@
     </div>
   </section>
 
+  <!-- ★★ 默写模式：全屏遮罩 ★★ -->
+  <div class="dictation-overlay" id="dictationOverlay" aria-hidden="true">
+    <div class="dictation-box" id="dictationBox">
+      <div class="dictation-top">
+        <span class="dictation-progress" id="dictationProgress">1 / 20</span>
+        <button class="dictation-close" id="dictationClose" title="退出默写">✕</button>
+      </div>
+
+      <!-- 答题区 -->
+      <div class="dictation-stage" id="dictationStage">
+        <div class="dictation-label">请写出对应的英文单词</div>
+        <div class="dictation-meaning" id="dictationMeaning">…</div>
+        <input class="dictation-input" id="dictationInput" type="text"
+               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="输入英文后点提交（不区分大小写）" />
+        <button class="dictation-submit" id="dictationSubmit">提交</button>
+        <div class="dictation-feedback" id="dictationFeedback"></div>
+      </div>
+
+      <!-- 结果区 -->
+      <div class="dictation-result" id="dictationResult" style="display:none">
+        <div class="dictation-result-emoji" id="dictationResultEmoji">🎉</div>
+        <div class="dictation-result-title">默写完成</div>
+        <div class="dictation-result-score" id="dictationScore">正确率 0%</div>
+        <div class="dictation-result-detail" id="dictationDetail"></div>
+        <div class="dictation-result-btns">
+          <button class="dictation-btn" id="dictationAgain">🔁 再练一次</button>
+          <button class="dictation-btn dictation-btn-ghost" id="dictationDone">完成</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
-  <!-- ★ 加版本号：强制浏览器拉取最新脚本（避免手机旧缓存导致功能失效） -->
-  <script src="script.js?v=3"></script>
+  <!-- ★ 版本号 v4：强制浏览器拉取最新脚本 -->
+  <script src="script.js?v=4"></script>
 </body>
 </html>
