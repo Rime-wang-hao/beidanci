@@ -180,10 +180,19 @@ function dateFromDayOffset(offset) {   // offset = 0 今天，1 昨天 …
   return d;
 }
 
-// ★ 锚点：默认以"今天"为第 1 组（从词库开头 A 连贯背）
-//   用户点「🔁 从头开始」可重设锚点
+// ★ 锚点：你的「起点日」= 第 1 组所在的日期
+//   固定存在 state.startDay（首次使用时自动记下），之后每过一天自动 +1 组
 function getAnchorDay() {
   return (typeof state.startDay === "number" && state.startDay > 0) ? state.startDay : dayOfYear();
+}
+
+// ★ 锚点自愈：首次使用时把「起点日」固定下来并持久化
+//   否则 getAnchorDay() 每次都返回"当天" → 永远停在第 1 组，词不会往前推进
+function ensureAnchor() {
+  if (typeof state.startDay !== "number" || state.startDay <= 0) {
+    state.startDay = dayOfYear();
+    saveState();
+  }
 }
 
 // ★ 核心：按"组"连贯截取词库
@@ -205,9 +214,9 @@ function pickTodayQueue() {
   return sliceQueue(dayOfYear() - getAnchorDay());
 }
 
-// ★ 历史任务（以元旦为基准的年度绝对日序，用于历史回顾）
+// ★ 历史任务（与今日任务共用同一套锚点日序，保证前后完全一致）
 function pickHistoryQueue(dateObj) {
-  return sliceQueue(dayOfYear(dateObj) - 1);
+  return sliceQueue(dayOfYear(dateObj) - getAnchorDay());
 }
 
 // 今天背到第几组（用于展示进度）
@@ -658,7 +667,7 @@ function renderHistory(offset) {
   // ★ 今天 → 与上方「今日任务」完全一致；历史日期 → 按年度日序（1月1日起 每天20词）推算
   const q = (offset === 0) ? pickTodayQueue() : pickHistoryQueue(d);
   if (!q.length) {
-    box.innerHTML = `<div class="history-empty">这一天还没有分配任务</div>`;
+    box.innerHTML = `<div class="history-empty">这一天在你的起点日之前，还没有分配任务</div>`;
     return;
   }
   const log = state.dictationLog[today()] || null;
@@ -1160,6 +1169,7 @@ async function init() {
   if (checkAppVersion()) return;      // 旧缓存 → 强制刷新
 
   loadState();
+  ensureAnchor();        // ★ 固定「起点日」→ 之后每天自动推进一组
   setupStarfield();
   setupMusic();
   setupSwipe();
@@ -1219,12 +1229,12 @@ async function init() {
     overlay.addEventListener("click", (e) => { if (e.target === overlay) closeDictation(); });
   }
 
-  // ★ 从头开始
+  // ★ 从头开始（把「起点日」重置为今天）
   const restartBtn = document.getElementById("restartBtn");
   if (restartBtn) {
     restartBtn.addEventListener("click", () => {
       if (!wordListReady) { toast("词库还没加载好，请稍候…"); return; }
-      state.startDay = dayOfYear();          // 锚点设为今天 → 从 A 开头
+      state.startDay = dayOfYear();          // ★ 起点日 = 今天 → 回到第 1 组（abandon 起）
       state.todayQueue = pickTodayQueue();
       currentIndex = 0;
       state.todayDone = 0;
@@ -1232,7 +1242,7 @@ async function init() {
       renderCard();
       renderTop();
       setupHistorySelect();
-      toast("已从词库开头（A）重新开始 ✓");
+      toast("已回到第 1 组（abandon 起），之后每天自动往后推进 ✓");
     });
   }
 
