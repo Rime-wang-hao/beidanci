@@ -3,7 +3,7 @@
 // ★ 版本号：改动后请同步更新这里 + index.html 里的 ?v= 参数
 // =============================================================
 
-const APP_VERSION = "v4.0.0";
+const APP_VERSION = "v4.1.0";
 
 // ★ 每日一句：30 句「坚持 / 努力 / 越努力越幸运」英中双语谚语
 const DAILY_QUOTES = [
@@ -502,46 +502,234 @@ function answer(isKnown) {
 }
 
 // =============================================================
-// TTS 语音朗读（兼容 iOS Safari / 微信内置浏览器）
+// ★ 发音模块（兼容 iOS Safari / Android Chrome / 微信内置浏览器）
+//   1) 首选：有道词典真人发音 —— type=2 美音优先，失败自动退到 type=1 英音
+//   2) 降级：系统 Web Speech API TTS，自动挑选音质最好的英语语音
 // =============================================================
-let ttsVoice = null;
+const VOICE_API     = "https://dict.youdao.com/dictvoice";
+const VOICE_TYPES   = [2, 1];          // 2=美式(优先)，1=英式(备用)
+const VOICE_TIMEOUT = 4500;            // 单个音频最长等待(ms)，超时即降级
+const TTS_RATE      = 0.85;
+
+let ttsVoice       = null;
+let currentAudio   = null;             // 当前播放中的真人音频
+let currentSpeakBtn = null;            // 当前正在朗读的按钮
+let speakToken     = 0;                // 令牌：新请求让旧的异步回调失效
+let speechUnlocked = false;
+let lastClickTarget = null;            // 最近一次点击的元素（用于状态高亮）
+
+// 记录最近点击目标（捕获阶段先于 onclick 执行，可拿到准确元素）
+// 同时在首次交互时解锁语音合成（iOS / 微信要求）
+document.addEventListener("click", (e) => {
+  lastClickTarget = e.target;
+  unlockSpeech();
+}, true);
+
+/* ---------- TTS 语音挑选：Google US English > Samantha > Microsoft Zira ... ---------- */
+function pickBestVoice() {
+  if (!("speechSynthesis" in window)) return null;
+  const vs = window.speechSynthesis.getVoices() || [];
+  const en = vs.filter(v => /^en[-_]/i.test(v.lang || ""));
+  if (!en.length) return null;
+  // 音质白名单（权重远高于其它因素，确保首选顺序稳定）
+  const PREF = [
+    [/google us english/i, 1000],
+    [/samantha/i,                900],
+    [/microsoft (zira|aria|sonia|david)/i, 800],
+    [/google uk english/i,       600],
+    [/microsoft (guy|mark|hazel|terri)/i, 500]
+  ];
+  const score = (v) => {
+    const name = v.name || "";
+    let s = 0;
+    for (const [re, w] of PREF) if (re.test(name)) { s += w; break; }
+    const lang = v.lang || "";
+    if (/^en[-_]US/i.test(lang))              s += 60;
+    else if (/^en[-_]GB/i.test(lang))         s += 40;
+    else if (/^en/i.test(lang))               s += 20;
+    if (v.localService) s += 5;
+    if (v.default)      s += 2;
+    return s;
+  };
+  return en.slice().sort((a, b) => score(b) - score(a))[0] || null;
+}
+
 function warmupVoices() {
   try {
     if (!("speechSynthesis" in window)) return;
-    const pick = () => {
-      const vs = window.speechSynthesis.getVoices() || [];
-      if (!vs.length) return;
-      ttsVoice = vs.find(v => v.lang === "en-US" && v.localService)
-              || vs.find(v => v.lang === "en-US")
-              || vs.find(v => /^en[-_]/i.test(v.lang))
-              || null;
-    };
+    const pick = () => { ttsVoice = pickBestVoice(); };
     pick();
     window.speechSynthesis.onvoiceschanged = pick;
+    if (window.speechSynthesis.addEventListener) {
+      window.speechSynthesis.addEventListener("voiceschanged", pick);
+    }
   } catch (_) {}
 }
-function speakWord(word) {
-  if (!word) return;
+
+/* ---------- 元素状态：加载中 / 播放中 ---------- */
+function setSpeakState(el, state) {
+  const list = [];
+  if (el) list.push(el);
+  const btn = document.getElementById("speakBtn");
+  if (btn && btn !== el) list.push(btn);
+  list.forEach(n => {
+    if (!n || !n.classList) return;
+    n.classList.remove("is-loading", "is-playing");
+    if (state === "loading") n.classList.add("is-loading");
+    else if (state === "playing") n.classList.add("is-playing");
+  });
+}
+
+function resolveSpeakTarget(el) {
+  if (el && el.closest) {
+    const s = el.closest(".speaker");
+    if (s) return s;
+    const d = el.closest("[data-speak]");
+    if (d) return d;
+  }
+  if (lastClickTarget && lastClickTarget.closest) {
+    const s = lastClickTarget.closest(".speaker");
+    if (s) return s;
+    const d = lastClickTarget.closest("[data-speak]");
+    if (d) return d;
+  }
+  return document.getElementById("speakBtn");
+}
+
+/* ---------- iOS / 微信：首次交互解锁语音合成 ---------- */
+function unlockSpeech() {
+  if (speechUnlocked) return;
+  if (!("speechSynthesis" in window)) return;
+  try {
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0; u.rate = 10;
+    window.speechSynthesis.speak(u);
+    speechUnlocked = true;
+  } catch (_) {}
+}
+/* ---------- 降级方案：系统 TTS（音质最好的英语语音） ---------- */
+function speakViaTTS(word, btn) {
   if (!("speechSynthesis" in window) || typeof window.SpeechSynthesisUtterance === "undefined") {
+    setSpeakState(btn, "idle");
     toast(CONFIG.toastNoTTS);
     return;
   }
   try {
     window.speechSynthesis.cancel();
+    if (!ttsVoice) ttsVoice = pickBestVoice();
     const u = new SpeechSynthesisUtterance(word);
     u.lang = "en-US";
-    u.rate = 0.85;
+    u.rate = TTS_RATE;
     u.pitch = 1;
     if (ttsVoice) u.voice = ttsVoice;
+    const done = () => { if (currentSpeakBtn === btn) setSpeakState(btn, "idle"); };
+    u.onend = done;
+    u.onerror = done;
     // ★ 必须在用户点击的同步调用栈里直接 speak
     window.speechSynthesis.speak(u);
+    setSpeakState(btn, "playing");
   } catch (e) {
+    setSpeakState(btn, "idle");
     toast(CONFIG.toastNoTTS);
+  }
+}
+
+/* ---------- 播放真人发音音频（美音 type=2 优先 → 英音 type=1 → TTS） ---------- */
+function playOnlineAudio(word, btn, typeIndex) {
+  const idx = typeIndex || 0;
+  const token = ++speakToken;
+  let settled = false;
+
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    if (currentAudio) {
+      currentAudio.onended = null;
+      currentAudio.onerror = null;
+      currentAudio = null;
+    }
+  };
+
+  // 当前发音类型也失败 → 换下一种（美音→英音）→ 最后降级 TTS
+  const fallback = () => {
+    if (settled) return;
+    finish();
+    if (token !== speakToken) return;          // 已被新的点击取代
+    if (idx + 1 < VOICE_TYPES.length) {
+      playOnlineAudio(word, btn, idx + 1);     // 换一种口音再试
+    } else {
+      setSpeakState(btn, "idle");
+      speakViaTTS(word, btn);                  // ★ 最终降级到系统 TTS
+    }
+  };
+
+  let audio;
+  try {
+    audio = new Audio();
+    audio.preload = "auto";
+    audio.src = `${VOICE_API}?audio=${encodeURIComponent(word)}&type=${VOICE_TYPES[idx]}`;
+  } catch (e) {
+    fallback();
+    return;
+  }
+  currentAudio = audio;
+
+  const timer = setTimeout(fallback, VOICE_TIMEOUT);
+
+  audio.onplaying = () => {
+    if (token !== speakToken) return;
+    setSpeakState(btn, "playing");
+  };
+  audio.onended = () => {
+    if (token !== speakToken) return;
+    finish();
+    setSpeakState(btn, "idle");
+  };
+  audio.onerror = fallback;
+
+  // ★ 必须写在用户点击的同步调用栈里，否则移动端会被自动播放策略拦截
+  try {
+    const p = audio.play();
+    if (p && typeof p.then === "function") {
+      p.then(() => { if (token === speakToken) setSpeakState(btn, "playing"); })
+       .catch(fallback);
+    }
+  } catch (e) {
+    fallback();
+  }
+}
+
+/**
+ * 朗读单词：优先有道真人发音（美音），失败自动降级系统 TTS
+ * @param {string} word 单词
+ * @param {HTMLElement} [btn] 触发按钮（用于加载中/播放中状态）
+ */
+function speakWord(word, btn) {
+  if (!word) return;
+  const target = btn || resolveSpeakTarget(null);
+  currentSpeakBtn = target;
+  setSpeakState(target, "loading");
+
+  // 停止可能正在朗读的 TTS（真人音频与 TTS 不同时发声）
+  try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (_) {}
+  // 停止上一段真人音频
+  if (currentAudio) {
+    try { currentAudio.pause(); currentAudio.onended = null; currentAudio.onerror = null; } catch (_) {}
+    currentAudio = null;
+  }
+  speakToken++;
+
+  if (typeof Audio === "undefined") { speakViaTTS(word, target); return; }
+  try {
+    playOnlineAudio(word, target);
+  } catch (e) {
+    speakViaTTS(word, target);
   }
 }
 function speak() {
   const w = state.todayQueue[currentIndex];
-  if (w) speakWord(w.word);
+  if (w) speakWord(w.word, document.getElementById("speakBtn"));
 }
 
 // =============================================================
@@ -678,7 +866,7 @@ function renderHistory(offset) {
       ${offset === 0 && log ? `<span class="history-log">默写 ${log.correct}/${log.total}</span>` : ""}
     </div>
     <div class="history-words">${q.map(w => `
-      <span class="history-word" onclick="speakWord('${w.word}')" title="点击朗读">${w.word}</span>
+      <span class="history-word" data-speak onclick="speakWord('${w.word}')" title="点击朗读">${w.word}</span>
     `).join("")}</div>`;
 }
 
@@ -791,7 +979,7 @@ function finishDictation() {
   if (detail) {
     const wrongList = dictation.wrong.length
       ? `<div class="dictation-wrong-list">${dictation.wrong.map(w =>
-          `<span class="dictation-wrong-item" onclick="speakWord('${w.word}')">${w.word}</span>`).join("")}</div>`
+          `<span class="dictation-wrong-item" data-speak onclick="speakWord('${w.word}')">${w.word}</span>`).join("")}</div>`
       : `<div class="dictation-perfect">全对！太棒了 ✨</div>`;
     detail.innerHTML = `答对 ${correct} / ${total} 题${dictation.wrong.length ? "，错词已收入错题集：" : ""}${wrongList}`;
   }
@@ -836,7 +1024,7 @@ function renderWrong() {
     return `
       <div class="word-item word-item-wrong">
         <div class="word-item-row">
-          <div class="word-item-clickable" onclick="speakWord('${w}')" title="点击朗读">
+          <div class="word-item-clickable" data-speak onclick="speakWord('${w}')" title="点击朗读">
             <span class="word-mark mark-wrong" title="错题">✗</span>
             <span class="word-item-w">${w}</span>
             <span style="font-size:13px;color:var(--gold);font-family:var(--font-num);">${phonetic}</span>
@@ -869,7 +1057,7 @@ function renderKnown() {
     return `
       <div class="word-item word-item-known">
         <div class="word-item-row">
-          <div class="word-item-clickable" onclick="speakWord('${w}')" title="点击朗读">
+          <div class="word-item-clickable" data-speak onclick="speakWord('${w}')" title="点击朗读">
             <span class="word-mark mark-known" title="已掌握">✓</span>
             <span class="word-item-w">${w}</span>
             <span style="font-size:13px;color:var(--gold);font-family:var(--font-num);">${phonetic}</span>
@@ -909,7 +1097,7 @@ function renderHard() {
     const pos      = word ? (word.pos || "") : "";
     return `
       <div class="word-item">
-        <div class="word-item-left" onclick="speakWord('${w}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:4px 6px;margin:-4px -6px;border-radius:8px;" title="点击朗读">
+        <div class="word-item-left" data-speak onclick="speakWord('${w}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:4px 6px;margin:-4px -6px;border-radius:8px;" title="点击朗读">
           <span class="word-mark mark-unknown" title="不认识">✗</span>
           <div style="flex:1;min-width:0;">
             <div class="word-item-w">${w}</div>
@@ -954,7 +1142,7 @@ function renderAll() {
   const more = filtered.length - show.length;
   list.innerHTML = show.map(w => `
     <div class="word-item">
-      <div class="word-item-left" onclick="speakWord('${w.word}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:4px 6px;margin:-4px -6px;border-radius:8px;" title="点击朗读">
+      <div class="word-item-left" data-speak onclick="speakWord('${w.word}')" style="cursor:pointer;display:flex;align-items:center;gap:10px;flex:1;min-width:0;padding:4px 6px;margin:-4px -6px;border-radius:8px;" title="点击朗读">
         <span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:var(--gold-light);color:var(--gold);font-size:12px;font-weight:800;font-family:var(--font-num);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${w.word.charAt(0).toUpperCase()}</span>
         <div style="flex:1;min-width:0;">
           <div class="word-item-w">${w.word} <span style="font-size:13px;color:var(--gold);font-family:var(--font-num);">${w.phonetic || ""}</span></div>
